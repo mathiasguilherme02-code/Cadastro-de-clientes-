@@ -289,7 +289,16 @@ export default function App() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setFormData(prev => ({ ...prev, documentos: e.target.files }));
+      if (e.target.files.length > 10) {
+        alert("Você pode anexar no máximo 10 arquivos.");
+        const dt = new DataTransfer();
+        for (let i = 0; i < 10; i++) {
+          dt.items.add(e.target.files[i]);
+        }
+        setFormData(prev => ({ ...prev, documentos: dt.files }));
+      } else {
+        setFormData(prev => ({ ...prev, documentos: e.target.files }));
+      }
     }
   };
 
@@ -348,10 +357,48 @@ export default function App() {
       for (let i = 0; i < formData.documentos.length; i++) {
         const file = formData.documentos[i];
         
-        // Read file as base64
+        // Read file as base64 with compression for images to avoid large payloads
         const base64 = await new Promise<string>((resolve) => {
+          if (!file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+            return;
+          }
+
           const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              const maxDim = 1200;
+
+              if (width > height) {
+                if (width > maxDim) {
+                  height *= maxDim / width;
+                  width = maxDim;
+                }
+              } else {
+                if (height > maxDim) {
+                  width *= maxDim / height;
+                  height = maxDim;
+                }
+              }
+
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                resolve(canvas.toDataURL('image/jpeg', 0.7));
+              } else {
+                resolve(e.target?.result as string);
+              }
+            };
+            img.src = e.target?.result as string;
+          };
           reader.readAsDataURL(file);
         });
         
@@ -1864,9 +1911,9 @@ export default function App() {
               <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required />
               <div className="flex flex-col items-center justify-center space-y-3">
                 <UploadCloud className="text-yellow-500" size={48} />
-                <div className="text-slate-700 font-medium">Clique para fazer upload ou arraste os arquivos</div>
+                <div className="text-slate-700 font-medium">Clique para fazer upload ou arraste os arquivos (máx. 10)</div>
                 <div className="text-sm text-slate-500 max-w-md mx-auto">
-                  "Foto do RG e/ou CNH, comprovante de residência, uma selfie com o documento ao lado do rosto."
+                  "Foto do RG e/ou CNH, comprovante de residência, uma selfie com o documento ao lado do rosto. Você pode anexar até 10 arquivos."
                 </div>
                 {formData.documentos && formData.documentos.length > 0 && (
                   <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full text-sm font-medium">
