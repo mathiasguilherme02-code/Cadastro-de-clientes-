@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2 } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -36,6 +36,11 @@ export default function App() {
     if (params.get('admin') === 'true') return 'admin_login';
     return 'welcome';
   });
+  const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa'>('clientes');
+  const [cronogramaDate, setCronogramaDate] = useState(new Date().toISOString().split('T')[0]);
+  const [fluxoMonth, setFluxoMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
+  
   const [adminPassword, setAdminPassword] = useState('');
   const [adminToken, setAdminToken] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -77,6 +82,27 @@ export default function App() {
     };
     
     fetchData();
+
+    // Setup SSE for real-time updates
+    const eventSource = new EventSource('/api/events');
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'UPDATE_SETTINGS') {
+          fetchData();
+        } else if (data.type === 'UPDATE_CLIENTS') {
+          // We trigger a custom event that the rest of the app can listen to
+          window.dispatchEvent(new CustomEvent('app:update_clients'));
+        }
+      } catch (e) {
+        console.error("Error parsing SSE message:", e);
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
   }, []);
 
   const [formData, setFormData] = useState(initialFormData);
@@ -94,6 +120,51 @@ export default function App() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [cepSearchError, setCepSearchError] = useState('');
   const [cepTarget, setCepTarget] = useState<'client' | 'parente'>('client');
+
+  useEffect(() => {
+    const handleUpdateClients = async () => {
+      if (adminToken) {
+        try {
+          const clientsRes = await fetch('/api/clients', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          });
+          if (clientsRes.ok) {
+            const clientsData = await clientsRes.json();
+            setClients(clientsData);
+            
+            // If a client is selected in admin view, update it too
+            if (selectedClient && view === 'admin') {
+              const updatedSelected = clientsData.find((c: any) => c.id === selectedClient.id);
+              if (updatedSelected) {
+                setSelectedClient(updatedSelected);
+              }
+            }
+          }
+        } catch (error) {
+          console.error("Erro ao atualizar clientes:", error);
+        }
+      } else if (view === 'client_dashboard' && selectedClient?.cpf) {
+        try {
+          const res = await fetch('/api/clients/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cpf: selectedClient.cpf })
+          });
+          if (res.ok) {
+            const clientData = await res.json();
+            setSelectedClient(clientData);
+          }
+        } catch (error) {
+          console.error("Erro ao atualizar dados do cliente:", error);
+        }
+      }
+    };
+
+    window.addEventListener('app:update_clients', handleUpdateClients);
+    return () => {
+      window.removeEventListener('app:update_clients', handleUpdateClients);
+    };
+  }, [adminToken, view, selectedClient]);
 
   const handleSearchCep = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1015,6 +1086,90 @@ export default function App() {
   }
 
   if (view === 'admin') {
+    const cronogramaParcelas = clients.flatMap(c => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).flatMap((s: any, sIdx: number) => 
+        (s.parcelas || []).map((p: any, pIdx: number) => ({
+          ...p,
+          clientId: c.id,
+          clientName: c.nomeCompleto,
+          clientPhone: c.telefone,
+          simIndex: sIdx,
+          parcelaIndex: pIdx
+        }))
+      )
+    ).filter(p => p.dataVencimento === cronogramaDate);
+
+    const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
+
+    const monthEntradas = clients.flatMap(c => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).flatMap((s: any) => 
+        (s.parcelas || []).filter((p: any) => p.status === 'pago' && p.dataPagamento?.startsWith(fluxoMonth))
+      )
+    ).reduce((acc, p) => acc + p.valor, 0);
+
+    const monthSaidas = clients.flatMap(c => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
+        // If sim has dataCriacao, use it. Otherwise use client's dataCadastro
+        const date = s.dataCriacao || c.dataCadastro;
+        return date && date.startsWith(fluxoMonth);
+      })
+    ).reduce((acc, s) => acc + (s.valorSolicitado || 0), 0);
+
+    const monthRetiradas = adminTransactions
+      .filter((t: any) => t.data.startsWith(fluxoMonth))
+      .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
+
+    const saldo = monthEntradas - monthSaidas - monthRetiradas;
+
+    const handleAddRetirada = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!newRetirada.valor || !newRetirada.descricao) return;
+
+      const adminClient = clients.find(c => c.id === 'admin-transactions');
+      const transaction = { 
+        id: Date.now().toString(), 
+        valor: parseFloat(newRetirada.valor), 
+        descricao: newRetirada.descricao, 
+        data: newRetirada.data 
+      };
+      
+      try {
+        if (adminClient) {
+          const updatedClient = {
+            ...adminClient,
+            dados: {
+              ...adminClient.dados,
+              retiradas: [...(adminClient.dados?.retiradas || []), transaction]
+            }
+          };
+          await fetch(`/api/clients/${adminClient.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+            body: JSON.stringify(updatedClient)
+          });
+          setClients(clients.map(c => c.id === adminClient.id ? updatedClient : c));
+        } else {
+          const newAdminClient = {
+            id: 'admin-transactions',
+            nomeCompleto: 'Admin Transactions',
+            cpf: '00000000000',
+            dataCadastro: new Date().toISOString(),
+            dados: { retiradas: [transaction] }
+          };
+          await fetch('/api/clients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newAdminClient)
+          });
+          setClients([...clients, newAdminClient]);
+        }
+        setNewRetirada({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
+        alert('Retirada adicionada com sucesso!');
+      } catch (error) {
+        alert('Erro ao adicionar retirada.');
+      }
+    };
+
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3">
@@ -1055,7 +1210,28 @@ export default function App() {
             </div>
           </div>
 
-          {!selectedClient && (
+          <div className="flex gap-4 mb-8 border-b border-slate-200">
+            <button
+              onClick={() => { setAdminTab('clientes'); setSelectedClient(null); }}
+              className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'clientes' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Clientes
+            </button>
+            <button
+              onClick={() => { setAdminTab('cronograma'); setSelectedClient(null); }}
+              className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'cronograma' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Cronograma Diário
+            </button>
+            <button
+              onClick={() => { setAdminTab('fluxo_caixa'); setSelectedClient(null); }}
+              className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'fluxo_caixa' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Fluxo de Caixa
+            </button>
+          </div>
+
+          {!selectedClient && adminTab === 'clientes' && (
             <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
@@ -1476,9 +1652,9 @@ export default function App() {
                 ) : null}
               </div>
             </div>
-          ) : (
+          ) : !selectedClient && adminTab === 'clientes' ? (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-              {clients.length > 0 ? (
+              {clients.filter(c => c.id !== 'admin-transactions').length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -1492,7 +1668,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.map(client => (
+                      {clients.filter(c => c.id !== 'admin-transactions').map(client => (
                         <tr key={client.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="py-4 px-6 font-medium text-slate-800">{client.nomeCompleto}</td>
                           <td className="py-4 px-6 text-slate-600">{client.cpf}</td>
@@ -1533,6 +1709,192 @@ export default function App() {
                   <p className="text-slate-500">Os clientes que preencherem o formulário aparecerão aqui.</p>
                 </div>
               )}
+            </div>
+          ) : null}
+
+          {!selectedClient && adminTab === 'cronograma' && (
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  <Calendar size={24} className="text-yellow-500" />
+                  Cronograma Diário
+                </h2>
+                <input 
+                  type="date" 
+                  value={cronogramaDate}
+                  onChange={(e) => setCronogramaDate(e.target.value)}
+                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                />
+              </div>
+
+              {cronogramaParcelas.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="py-4 px-6 font-semibold text-slate-700">Cliente</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700">Telefone</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700">Parcela</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700">Valor</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700">Status</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700 text-right">Ação</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cronogramaParcelas.map((p, idx) => (
+                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-4 px-6 font-medium text-slate-800">{p.clientName}</td>
+                          <td className="py-4 px-6 text-slate-600">{p.clientPhone}</td>
+                          <td className="py-4 px-6 text-slate-600">{p.numero}</td>
+                          <td className="py-4 px-6 text-slate-600">R$ {p.valor.toFixed(2)}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
+                              p.status === 'pago' ? 'bg-green-100 text-green-800' :
+                              p.status === 'atrasado' ? 'bg-red-100 text-red-800' :
+                              'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {p.status === 'pago' ? 'Pago' : p.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <button 
+                              onClick={() => {
+                                const client = clients.find(c => c.id === p.clientId);
+                                if (client) {
+                                  setSelectedClient(client);
+                                  setAdminTab('clientes');
+                                }
+                              }}
+                              className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
+                            >
+                              Ver Cliente
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-12 text-center flex flex-col items-center justify-center">
+                  <Calendar size={64} className="text-slate-300 mb-4" />
+                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhuma parcela para esta data</h3>
+                  <p className="text-slate-500">Não há vencimentos programados para o dia selecionado.</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!selectedClient && adminTab === 'fluxo_caixa' && (
+            <div className="space-y-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <TrendingUp size={24} className="text-yellow-500" />
+                    Fluxo de Caixa
+                  </h2>
+                  <input 
+                    type="month" 
+                    value={fluxoMonth}
+                    onChange={(e) => setFluxoMonth(e.target.value)}
+                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-green-600 mb-1">Entradas (Pagamentos)</p>
+                    <p className="text-2xl font-bold text-green-700">R$ {monthEntradas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-red-600 mb-1">Saídas (Empréstimos)</p>
+                    <p className="text-2xl font-bold text-red-700">R$ {monthSaidas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-orange-600 mb-1">Retiradas Admins</p>
+                    <p className="text-2xl font-bold text-orange-700">R$ {monthRetiradas.toFixed(2)}</p>
+                  </div>
+                  <div className={`border p-4 rounded-xl ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
+                    <p className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
+                    <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>R$ {saldo.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-6">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Registrar Retirada Admin</h3>
+                  <form onSubmit={handleAddRetirada} className="flex gap-4 items-end">
+                    <div className="flex-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+                      <input 
+                        type="text" 
+                        value={newRetirada.descricao}
+                        onChange={(e) => setNewRetirada({...newRetirada, descricao: e.target.value})}
+                        placeholder="Ex: Pagamento de contas, Retirada de lucro..."
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <div className="w-48">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={newRetirada.valor}
+                        onChange={(e) => setNewRetirada({...newRetirada, valor: e.target.value})}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <div className="w-48">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                      <input 
+                        type="date" 
+                        value={newRetirada.data}
+                        onChange={(e) => setNewRetirada({...newRetirada, data: e.target.value})}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                        required
+                      />
+                    </div>
+                    <button 
+                      type="submit"
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 px-6 rounded-lg transition-colors h-[42px]"
+                    >
+                      Registrar
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-xl p-6">
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Retiradas ({fluxoMonth})</h3>
+                {adminTransactions.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="py-3 px-4 font-semibold text-slate-700">Data</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700">Descrição</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {adminTransactions
+                          .filter((t: any) => t.data.startsWith(fluxoMonth))
+                          .sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                          .map((t: any, idx: number) => (
+                          <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                            <td className="py-3 px-4 text-slate-600">{t.data.split('-').reverse().join('/')}</td>
+                            <td className="py-3 px-4 text-slate-800 font-medium">{t.descricao}</td>
+                            <td className="py-3 px-4 text-slate-600 text-right">R$ {parseFloat(t.valor).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-slate-500 text-center py-4">Nenhuma retirada registrada neste mês.</p>
+                )}
+              </div>
             </div>
           )}
         </div>

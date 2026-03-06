@@ -34,6 +34,29 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // --- API ROUTES ---
 
+// Server-Sent Events for Real-time Updates
+const sseClients = new Set<express.Response>();
+
+app.get('/api/events', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  sseClients.add(res);
+
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
+});
+
+function broadcastUpdate(type: string, payload?: any) {
+  const message = `data: ${JSON.stringify({ type, payload })}\n\n`;
+  for (const client of sseClients) {
+    client.write(message);
+  }
+}
+
 // Admin Login
 app.post("/api/admin/login", (req, res) => {
   if (req.body.password === ADMIN_PASSWORD) {
@@ -98,6 +121,7 @@ app.put("/api/settings", requireAdmin, async (req, res) => {
       .upsert({ id: 1, taxaJuros, taxaAtrasoDia });
       
     if (error) throw error;
+    broadcastUpdate('UPDATE_SETTINGS');
     res.json({ success: true });
   } catch (error) {
     console.error("Error updating settings:", error);
@@ -146,6 +170,7 @@ app.post("/api/clients", async (req, res) => {
       throw error;
     }
       
+    broadcastUpdate('UPDATE_CLIENTS');
     res.status(201).json({ success: true });
   } catch (error: any) {
     console.error("Error saving client:", error);
@@ -187,6 +212,7 @@ app.put("/api/clients/:id", async (req, res) => {
       .eq('id', id);
       
     if (error) throw error;
+    broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
   } catch (error) {
     console.error("Error updating client:", error);
@@ -204,6 +230,7 @@ app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
       .eq('id', id);
       
     if (error) throw error;
+    broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
   } catch (error) {
     console.error("Error deleting client:", error);
