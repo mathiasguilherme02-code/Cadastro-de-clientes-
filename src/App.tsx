@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2 } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -43,6 +43,7 @@ export default function App() {
   const [clientLoginError, setClientLoginError] = useState('');
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [editingParcela, setEditingParcela] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
   const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0});
 
@@ -913,6 +914,30 @@ export default function App() {
     );
   }
 
+  const handleDeleteClient = async (id: string) => {
+    try {
+      const res = await fetch(`/api/clients/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${adminToken}`
+        }
+      });
+      
+      if (res.ok) {
+        setClients(clients.filter(c => c.id !== id));
+        setClientToDelete(null);
+        if (selectedClient && selectedClient.id === id) {
+          setSelectedClient(null);
+        }
+      } else {
+        alert('Erro ao excluir cliente.');
+      }
+    } catch (error) {
+      console.error('Erro ao excluir cliente:', error);
+      alert('Erro ao excluir cliente.');
+    }
+  };
+
   if (view === 'admin_login') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
@@ -1101,12 +1126,21 @@ export default function App() {
                   <h2 className="text-2xl font-bold">{selectedClient.nomeCompleto}</h2>
                   <p className="text-slate-300">CPF: {selectedClient.cpf} | Cadastrado em: {selectedClient.dataCadastro}</p>
                 </div>
-                <button 
-                  onClick={() => setSelectedClient(null)}
-                  className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors print:hidden"
-                >
-                  Fechar Detalhes
-                </button>
+                <div className="flex gap-3 print:hidden">
+                  <button 
+                    onClick={() => setClientToDelete(selectedClient)}
+                    className="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Trash2 size={18} />
+                    Excluir
+                  </button>
+                  <button 
+                    onClick={() => setSelectedClient(null)}
+                    className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Fechar Detalhes
+                  </button>
+                </div>
               </div>
               
               <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -1471,12 +1505,21 @@ export default function App() {
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right">
-                            <button 
-                              onClick={() => setSelectedClient(client)}
-                              className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
-                            >
-                              Ver Detalhes
-                            </button>
+                            <div className="flex items-center justify-end gap-3">
+                              <button 
+                                onClick={() => setSelectedClient(client)}
+                                className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
+                              >
+                                Ver Detalhes
+                              </button>
+                              <button 
+                                onClick={() => setClientToDelete(client)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                title="Excluir cliente"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1493,6 +1536,34 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {clientToDelete && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trash2 size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 text-center mb-2">Excluir Cliente</h3>
+              <p className="text-slate-600 text-center mb-6">
+                Tem certeza que deseja excluir o cliente <span className="font-semibold">{clientToDelete.nomeCompleto}</span>? Esta ação não poderá ser desfeita.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setClientToDelete(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => handleDeleteClient(clientToDelete.id)}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 px-4 rounded-xl transition-colors"
+                >
+                  Sim, Excluir
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
