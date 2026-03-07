@@ -114,6 +114,7 @@ export default function App() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCepSearchModal, setShowCepSearchModal] = useState(false);
   const [cepSearchData, setCepSearchData] = useState({ uf: '', cidade: '', logradouro: '' });
   const [cepSearchResults, setCepSearchResults] = useState<any[]>([]);
@@ -423,11 +424,28 @@ export default function App() {
       return;
     }
     
-    // Convert files to base64 for database storage
-    const fileUrls: { name: string, url: string, type: string }[] = [];
+    setIsSubmitting(true);
+    try {
+      // Convert files to base64 for database storage
+      const fileUrls: { name: string, url: string, type: string }[] = [];
     if (formData.documentos) {
+      let totalSize = 0;
+      for (let i = 0; i < formData.documentos.length; i++) {
+        totalSize += formData.documentos[i].size;
+      }
+      if (totalSize > 8 * 1024 * 1024) {
+        alert("O tamanho total dos arquivos excede o limite de 8MB. Por favor, envie arquivos menores ou em menor quantidade.");
+        return;
+      }
+
       for (let i = 0; i < formData.documentos.length; i++) {
         const file = formData.documentos[i];
+        
+        // Limit file size to 5MB
+        if (file.size > 5 * 1024 * 1024) {
+          alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 5MB.`);
+          return; // Stop submission
+        }
         
         // Read file as base64 with compression for images to avoid large payloads
         const base64 = await new Promise<string>((resolve) => {
@@ -440,36 +458,43 @@ export default function App() {
 
           const reader = new FileReader();
           reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-              const maxDim = 1200;
+            if (file.type.startsWith('image/')) {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                const maxDim = 800;
 
-              if (width > height) {
-                if (width > maxDim) {
-                  height *= maxDim / width;
-                  width = maxDim;
+                if (width > height) {
+                  if (width > maxDim) {
+                    height *= maxDim / width;
+                    width = maxDim;
+                  }
+                } else {
+                  if (height > maxDim) {
+                    width *= maxDim / height;
+                    height = maxDim;
+                  }
                 }
-              } else {
-                if (height > maxDim) {
-                  width *= maxDim / height;
-                  height = maxDim;
-                }
-              }
 
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              if (ctx) {
-                ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.7));
-              } else {
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, width, height);
+                  resolve(canvas.toDataURL('image/jpeg', 0.6));
+                } else {
+                  resolve(e.target?.result as string);
+                }
+              };
+              img.onerror = () => {
                 resolve(e.target?.result as string);
-              }
-            };
-            img.src = e.target?.result as string;
+              };
+              img.src = e.target?.result as string;
+            } else {
+              resolve(e.target?.result as string);
+            }
           };
           reader.readAsDataURL(file);
         });
@@ -482,37 +507,49 @@ export default function App() {
       }
     }
 
+    const generateUUID = () => {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return crypto.randomUUID();
+      }
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+
     const newClient = {
       ...formData,
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
+      id: generateUUID(),
       dataCadastro: new Date().toLocaleDateString('pt-BR'),
       arquivos: fileUrls,
       simulacoes: [simulacao]
     };
 
-    try {
-      const response = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newClient)
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        alert(`Erro: ${errorData.error}`);
-        return;
-      }
-      
-      setClients(prev => [newClient, ...prev]);
-      setShowSuccessModal(true);
-      
-      // Reset form
-      setFormData(initialFormData);
-    } catch (error) {
-      console.error("Erro ao salvar cliente:", error);
-      alert("Ocorreu um erro ao salvar o cadastro.");
+    const response = await fetch('/api/clients', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newClient)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      const details = errorData.details ? JSON.stringify(errorData.details) : '';
+      alert(`Erro: ${errorData.error} ${details}`);
+      return;
     }
-  };
+    
+    setClients(prev => [newClient, ...prev]);
+    setShowSuccessModal(true);
+    
+    // Reset form
+    setFormData(initialFormData);
+  } catch (error: any) {
+    console.error("Erro ao salvar cliente:", error);
+    alert(`Ocorreu um erro ao salvar o cadastro: ${error.message || error}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleAddSimulation = async () => {
     if (!selectedClient) return;
@@ -1160,8 +1197,18 @@ export default function App() {
       if (!newRetirada.valor || !newRetirada.descricao) return;
 
       const adminClient = clients.find(c => c.id === '00000000-0000-0000-0000-000000000000');
+      const generateUUID = () => {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+          return crypto.randomUUID();
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      };
+
       const transaction = { 
-        id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(), 
+        id: generateUUID(), 
         valor: parseFloat(newRetirada.valor), 
         descricao: newRetirada.descricao, 
         data: newRetirada.data 
@@ -2393,8 +2440,19 @@ export default function App() {
           </section>
 
           <div className="pt-6 border-t">
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg">
-              Concluir Cadastro
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className={`w-full font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg ${isSubmitting ? 'bg-slate-400 cursor-not-allowed text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Enviando...
+                </>
+              ) : (
+                'Concluir Cadastro'
+              )}
             </button>
           </div>
         </form>

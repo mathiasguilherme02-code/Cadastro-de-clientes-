@@ -29,8 +29,8 @@ const app = express();
 const PORT = 3000;
 
 // Increase payload limit for file uploads (base64)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // --- API ROUTES ---
 
@@ -151,6 +151,9 @@ app.get("/api/clients", requireAdmin, async (req, res) => {
 app.post("/api/clients", async (req, res) => {
   try {
     const client = req.body;
+    if (!client || !client.cpf) {
+      return res.status(400).json({ error: "CPF é obrigatório" });
+    }
     const formattedCpf = client.cpf.replace(/[^\d]+/g, '');
     
     // Convert DD/MM/YYYY to YYYY-MM-DD for PostgreSQL date column
@@ -176,14 +179,15 @@ app.post("/api/clients", async (req, res) => {
       if (error.code === '23505') { // unique violation
         return res.status(400).json({ error: "CPF já cadastrado" });
       }
-      throw error;
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({ error: "Falha ao salvar cliente", details: error });
     }
       
     broadcastUpdate('UPDATE_CLIENTS');
     res.status(201).json({ success: true });
   } catch (error: any) {
     console.error("Error saving client:", error);
-    res.status(500).json({ error: "Falha ao salvar cliente" });
+    res.status(500).json({ error: "Falha ao salvar cliente", details: error.message || error });
   }
 });
 
@@ -245,6 +249,15 @@ app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
     console.error("Error deleting client:", error);
     res.status(500).json({ error: "Falha ao excluir cliente" });
   }
+});
+
+// Error handler middleware
+app.use((err: any, req: any, res: any, next: any) => {
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: "Payload muito grande. Os arquivos enviados são muito pesados." });
+  }
+  console.error("Unhandled error:", err);
+  res.status(500).json({ error: "Erro interno do servidor", details: err.message });
 });
 
 // Vite middleware for development
