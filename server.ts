@@ -153,13 +153,22 @@ app.post("/api/clients", async (req, res) => {
     const client = req.body;
     const formattedCpf = client.cpf.replace(/[^\d]+/g, '');
     
+    // Convert DD/MM/YYYY to YYYY-MM-DD for PostgreSQL date column
+    let pgDate = new Date().toISOString();
+    if (client.dataCadastro && client.dataCadastro.includes('/')) {
+      const [day, month, year] = client.dataCadastro.split('/');
+      if (day && month && year) {
+        pgDate = `${year}-${month}-${day}`;
+      }
+    }
+    
     const { error } = await supabase
       .from('clients')
       .insert([{
         id: client.id,
         nomeCompleto: client.nomeCompleto,
         cpf: formattedCpf,
-        dataCadastro: client.dataCadastro,
+        dataCadastro: pgDate,
         dados: client
       }]);
       

@@ -484,7 +484,7 @@ export default function App() {
 
     const newClient = {
       ...formData,
-      id: Date.now().toString(),
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
       dataCadastro: new Date().toLocaleDateString('pt-BR'),
       arquivos: fileUrls,
       simulacoes: [simulacao]
@@ -1058,6 +1058,40 @@ export default function App() {
                 type="password" 
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
+                onKeyDown={async (e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    try {
+                      const res = await fetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ password: adminPassword })
+                      });
+                      
+                      if (res.ok) {
+                        const { token } = await res.json();
+                        setAdminToken(token);
+                        
+                        const clientsRes = await fetch('/api/clients', {
+                          headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        
+                        if (clientsRes.ok) {
+                          const clientsData = await clientsRes.json();
+                          setClients(clientsData);
+                        }
+                        
+                        setView('admin');
+                        setAdminPassword('');
+                        setLoginError('');
+                      } else {
+                        setLoginError('Senha incorreta. Tente novamente.');
+                      }
+                    } catch (error) {
+                      setLoginError('Erro ao conectar com o servidor.');
+                    }
+                  }
+                }}
                 className={`w-full px-4 py-2 border ${loginError ? 'border-red-500 focus:ring-red-500' : 'border-slate-300 focus:ring-yellow-500'} rounded-lg focus:ring-2 outline-none transition-all`}
                 required
               />
@@ -1125,9 +1159,9 @@ export default function App() {
       e.preventDefault();
       if (!newRetirada.valor || !newRetirada.descricao) return;
 
-      const adminClient = clients.find(c => c.id === 'admin-transactions');
+      const adminClient = clients.find(c => c.id === '00000000-0000-0000-0000-000000000000');
       const transaction = { 
-        id: Date.now().toString(), 
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(), 
         valor: parseFloat(newRetirada.valor), 
         descricao: newRetirada.descricao, 
         data: newRetirada.data 
@@ -1150,7 +1184,7 @@ export default function App() {
           setClients(clients.map(c => c.id === adminClient.id ? updatedClient : c));
         } else {
           const newAdminClient = {
-            id: 'admin-transactions',
+            id: '00000000-0000-0000-0000-000000000000',
             nomeCompleto: 'Admin Transactions',
             cpf: '00000000000',
             dataCadastro: new Date().toISOString(),
