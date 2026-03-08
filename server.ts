@@ -1,7 +1,8 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createClient } from '@supabase/supabase-js';
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy } from "firebase/firestore";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,9 +10,22 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://iqeinzphgeajjwnkpewr.supabase.co';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_jFhefXNwrSR74wZzfxK6TQ_hKT7n9OT';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const firebaseConfig = {
+  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDlOItlVJP6hAD4yEKA8ZdDkI4FxV3oNlw",
+  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "gmemprestimo-69965.firebaseapp.com",
+  projectId: process.env.FIREBASE_PROJECT_ID || "gmemprestimo-69965",
+  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "gmemprestimo-69965.firebasestorage.app",
+  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "200113810439",
+  appId: process.env.FIREBASE_APP_ID || "1:200113810439:web:b8f49db6b8ac01975d4ea2"
+};
+
+let db: any;
+try {
+  const firebaseApp = initializeApp(firebaseConfig);
+  db = getFirestore(firebaseApp);
+} catch (e) {
+  console.error("Firebase initialization error:", e);
+}
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Gustavo@01';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'secret-admin-token-123';
@@ -33,6 +47,14 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // --- API ROUTES ---
+
+const checkFirebaseConfig = (req: any, res: any, next: any) => {
+  // Config is now hardcoded as fallback, so it's always available
+  next();
+};
+
+app.use('/api/clients', checkFirebaseConfig);
+app.use('/api/settings', checkFirebaseConfig);
 
 // Server-Sent Events for Real-time Updates
 const sseClients = new Set<express.Response>();
@@ -72,16 +94,14 @@ app.post("/api/clients/login", async (req, res) => {
     const { cpf } = req.body;
     const formattedCpf = cpf.replace(/[^\d]+/g, '');
     
-    const { data, error } = await supabase
-      .from('clients')
-      .select('dados')
-      .eq('cpf', formattedCpf)
-      .single();
+    const q = query(collection(db, "clients"), where("cpf", "==", formattedCpf));
+    const querySnapshot = await getDocs(q);
       
-    if (error || !data) {
+    if (querySnapshot.empty) {
       return res.status(404).json({ error: "Cliente não encontrado" });
     }
     
+    const data = querySnapshot.docs[0].data();
     const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
     res.json(clientData);
   } catch (error) {
@@ -93,19 +113,13 @@ app.post("/api/clients/login", async (req, res) => {
 // Get Admin Settings (Public, needed for simulation)
 app.get("/api/settings", async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('admin_settings')
-      .select('taxaJuros, taxaAtrasoDia')
-      .eq('id', 1)
-      .single();
+    const docRef = doc(db, "admin_settings", "1");
+    const docSnap = await getDoc(docRef);
       
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return res.json({ taxaJuros: '40', taxaAtrasoDia: '8' });
-      }
-      throw error;
+    if (!docSnap.exists()) {
+      return res.json({ taxaJuros: '40', taxaAtrasoDia: '8' });
     }
-    res.json(data);
+    res.json(docSnap.data());
   } catch (error) {
     console.error("Error fetching settings:", error);
     res.status(500).json({ error: "Falha ao buscar configurações" });
@@ -116,11 +130,8 @@ app.get("/api/settings", async (req, res) => {
 app.put("/api/settings", requireAdmin, async (req, res) => {
   try {
     const { taxaJuros, taxaAtrasoDia } = req.body;
-    const { error } = await supabase
-      .from('admin_settings')
-      .upsert({ id: 1, taxaJuros, taxaAtrasoDia });
+    await setDoc(doc(db, "admin_settings", "1"), { taxaJuros, taxaAtrasoDia }, { merge: true });
       
-    if (error) throw error;
     broadcastUpdate('UPDATE_SETTINGS');
     res.json({ success: true });
   } catch (error) {
@@ -132,14 +143,13 @@ app.put("/api/settings", requireAdmin, async (req, res) => {
 // Get All Clients (Protected)
 app.get("/api/clients", requireAdmin, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('clients')
-      .select('dados')
-      .order('dataCadastro', { ascending: false });
+    const q = query(collection(db, "clients"), orderBy("dataCadastro", "desc"));
+    const querySnapshot = await getDocs(q);
       
-    if (error) throw error;
-    
-    const parsedClients = data.map((c: any) => typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados);
+    const parsedClients = querySnapshot.docs.map(doc => {
+      const c = doc.data();
+      return typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
+    });
     res.json(parsedClients);
   } catch (error) {
     console.error("Error fetching clients:", error);
@@ -156,7 +166,14 @@ app.post("/api/clients", async (req, res) => {
     }
     const formattedCpf = client.cpf.replace(/[^\d]+/g, '');
     
-    // Convert DD/MM/YYYY to YYYY-MM-DD for PostgreSQL date column
+    // Check if CPF already exists
+    const q = query(collection(db, "clients"), where("cpf", "==", formattedCpf));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      return res.status(400).json({ error: "CPF já cadastrado" });
+    }
+    
+    // Convert DD/MM/YYYY to YYYY-MM-DD for sorting
     let pgDate = new Date().toISOString();
     if (client.dataCadastro && client.dataCadastro.includes('/')) {
       const [day, month, year] = client.dataCadastro.split('/');
@@ -165,23 +182,13 @@ app.post("/api/clients", async (req, res) => {
       }
     }
     
-    const { error } = await supabase
-      .from('clients')
-      .insert([{
-        id: client.id,
-        nomeCompleto: client.nomeCompleto,
-        cpf: formattedCpf,
-        dataCadastro: pgDate,
-        dados: client
-      }]);
-      
-    if (error) {
-      if (error.code === '23505') { // unique violation
-        return res.status(400).json({ error: "CPF já cadastrado" });
-      }
-      console.error("Supabase insert error:", error);
-      return res.status(500).json({ error: "Falha ao salvar cliente", details: error });
-    }
+    await setDoc(doc(db, "clients", client.id), {
+      id: client.id,
+      nomeCompleto: client.nomeCompleto,
+      cpf: formattedCpf,
+      dataCadastro: pgDate,
+      dados: client
+    });
       
     broadcastUpdate('UPDATE_CLIENTS');
     res.status(201).json({ success: true });
@@ -203,28 +210,21 @@ app.put("/api/clients/:id", async (req, res) => {
     
     if (!isAdmin) {
       // If not admin, verify that the CPF in the payload matches the CPF in the database for this ID
-      const { data: existingClient, error: fetchError } = await supabase
-        .from('clients')
-        .select('cpf')
-        .eq('id', id)
-        .single();
+      const docRef = doc(db, "clients", id);
+      const docSnap = await getDoc(docRef);
         
-      if (fetchError || !existingClient) {
+      if (!docSnap.exists()) {
         return res.status(404).json({ error: "Cliente não encontrado" });
       }
       
       const payloadCpf = client.cpf?.replace(/[^\d]+/g, '');
-      if (existingClient.cpf !== payloadCpf) {
+      if (docSnap.data().cpf !== payloadCpf) {
         return res.status(403).json({ error: "Acesso negado para atualizar este cliente" });
       }
     }
     
-    const { error } = await supabase
-      .from('clients')
-      .update({ dados: client })
-      .eq('id', id);
+    await updateDoc(doc(db, "clients", id), { dados: client });
       
-    if (error) throw error;
     broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
   } catch (error) {
@@ -237,12 +237,8 @@ app.put("/api/clients/:id", async (req, res) => {
 app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
-    const { error } = await supabase
-      .from('clients')
-      .delete()
-      .eq('id', id);
+    await deleteDoc(doc(db, "clients", id));
       
-    if (error) throw error;
     broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
   } catch (error) {
