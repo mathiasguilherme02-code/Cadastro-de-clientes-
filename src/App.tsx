@@ -40,7 +40,7 @@ export default function App() {
   const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa'>('clientes');
   const [cronogramaDate, setCronogramaDate] = useState(new Date().toISOString().split('T')[0]);
   const [fluxoMonth, setFluxoMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
+  const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0], tipo: 'retirada' });
   
   const [adminPassword, setAdminPassword] = useState('');
   const [adminToken, setAdminToken] = useState('');
@@ -1246,7 +1246,21 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
         .flatMap((s: any) => 
-        (s.parcelas || []).filter((p: any) => p.status === 'pago' && p.dataPagamento?.startsWith(fluxoMonth))
+        (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoMonth))
+      )
+    ).reduce((acc, p) => acc + p.valor, 0);
+
+    const monthInadimplencia = clients.flatMap(c => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .flatMap((s: any) => 
+        (s.parcelas || []).filter((p: any) => {
+          const hoje = new Date();
+          hoje.setHours(0,0,0,0);
+          const vencimento = new Date(p.dataVencimento);
+          vencimento.setHours(0,0,0,0);
+          return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoMonth);
+        })
       )
     ).reduce((acc, p) => acc + p.valor, 0);
 
@@ -1259,10 +1273,14 @@ export default function App() {
     ).reduce((acc, s) => acc + (s.valorSolicitado || 0), 0);
 
     const monthRetiradas = adminTransactions
-      .filter((t: any) => t.data.startsWith(fluxoMonth))
+      .filter((t: any) => t.data.startsWith(fluxoMonth) && t.tipo !== 'aporte')
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
-    const saldo = monthEntradas - monthSaidas - monthRetiradas;
+    const monthAportes = adminTransactions
+      .filter((t: any) => t.data.startsWith(fluxoMonth) && t.tipo === 'aporte')
+      .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
+
+    const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
 
     const handleAddRetirada = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -1283,7 +1301,8 @@ export default function App() {
         id: generateUUID(), 
         valor: parseFloat(newRetirada.valor), 
         descricao: newRetirada.descricao, 
-        data: newRetirada.data 
+        data: newRetirada.data,
+        tipo: newRetirada.tipo
       };
       
       try {
@@ -1316,7 +1335,7 @@ export default function App() {
           });
           setClients([...clients, newAdminClient]);
         }
-        setNewRetirada({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
+        setNewRetirada({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0], tipo: 'retirada' });
         alert('Retirada adicionada com sucesso!');
       } catch (error) {
         alert('Erro ao adicionar retirada.');
@@ -1687,7 +1706,13 @@ export default function App() {
                                           if (c.id === selectedClient.id) {
                                             const updatedSimulacoes = [...c.simulacoes];
                                             const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-                                            novasParcelas[i] = { ...novasParcelas[i], paga: !novasParcelas[i].paga };
+                                            const isNowPaid = !novasParcelas[i].paga;
+                                            novasParcelas[i] = { 
+                                              ...novasParcelas[i], 
+                                              paga: isNowPaid,
+                                              status: isNowPaid ? 'pago' : 'pendente',
+                                              dataPagamento: isNowPaid ? new Date().toISOString().split('T')[0] : null
+                                            };
                                             updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                             
                                             const updatedClient = {
@@ -2021,18 +2046,26 @@ export default function App() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
                   <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-green-600 mb-1">Entradas (Pagamentos)</p>
                     <p className="text-2xl font-bold text-green-700">R$ {monthEntradas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-emerald-600 mb-1">Aportes (Capital)</p>
+                    <p className="text-2xl font-bold text-emerald-700">R$ {monthAportes.toFixed(2)}</p>
                   </div>
                   <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-red-600 mb-1">Saídas (Empréstimos)</p>
                     <p className="text-2xl font-bold text-red-700">R$ {monthSaidas.toFixed(2)}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-orange-600 mb-1">Retiradas Admins</p>
+                    <p className="text-sm font-medium text-orange-600 mb-1">Retiradas / Despesas</p>
                     <p className="text-2xl font-bold text-orange-700">R$ {monthRetiradas.toFixed(2)}</p>
+                  </div>
+                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-rose-600 mb-1">Inadimplência (Mês)</p>
+                    <p className="text-2xl font-bold text-rose-700">R$ {monthInadimplencia.toFixed(2)}</p>
                   </div>
                   <div className={`border p-4 rounded-xl ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                     <p className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
@@ -2041,20 +2074,31 @@ export default function App() {
                 </div>
 
                 <div className="border-t pt-6">
-                  <h3 className="text-lg font-bold text-slate-800 mb-4">Registrar Retirada Admin</h3>
-                  <form onSubmit={handleAddRetirada} className="flex gap-4 items-end">
-                    <div className="flex-1">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4">Registrar Movimentação (Admin)</h3>
+                  <form onSubmit={handleAddRetirada} className="flex flex-wrap gap-4 items-end">
+                    <div className="w-48">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+                      <select 
+                        value={newRetirada.tipo}
+                        onChange={(e) => setNewRetirada({...newRetirada, tipo: e.target.value})}
+                        className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                      >
+                        <option value="retirada">Retirada / Despesa</option>
+                        <option value="aporte">Aporte (Entrada)</option>
+                      </select>
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
                       <input 
                         type="text" 
                         value={newRetirada.descricao}
                         onChange={(e) => setNewRetirada({...newRetirada, descricao: e.target.value})}
-                        placeholder="Ex: Pagamento de contas, Retirada de lucro..."
+                        placeholder={newRetirada.tipo === 'aporte' ? "Ex: Investimento inicial, Aporte dos sócios..." : "Ex: Pagamento de contas, Retirada de lucro..."}
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
                         required
                       />
                     </div>
-                    <div className="w-48">
+                    <div className="w-40">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
                       <input 
                         type="number" 
@@ -2065,7 +2109,7 @@ export default function App() {
                         required
                       />
                     </div>
-                    <div className="w-48">
+                    <div className="w-40">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
                       <input 
                         type="date" 
@@ -2077,8 +2121,9 @@ export default function App() {
                     </div>
                     <button 
                       type="submit"
-                      className="bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 px-6 rounded-lg transition-colors h-[42px]"
+                      className={`flex items-center gap-2 text-white px-6 py-2 rounded-lg transition-colors font-medium h-[42px] ${newRetirada.tipo === 'aporte' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-800 hover:bg-slate-700'}`}
                     >
+                      <Plus size={20} />
                       Registrar
                     </button>
                   </form>
@@ -2086,13 +2131,14 @@ export default function App() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Retiradas ({fluxoMonth})</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoMonth})</h3>
                 {adminTransactions.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="py-3 px-4 font-semibold text-slate-700">Data</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700">Tipo</th>
                           <th className="py-3 px-4 font-semibold text-slate-700">Descrição</th>
                           <th className="py-3 px-4 font-semibold text-slate-700 text-right">Valor</th>
                         </tr>
@@ -2104,15 +2150,22 @@ export default function App() {
                           .map((t: any, idx: number) => (
                           <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
                             <td className="py-3 px-4 text-slate-600">{t.data.split('-').reverse().join('/')}</td>
+                            <td className="py-3 px-4">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${t.tipo === 'aporte' ? 'bg-emerald-100 text-emerald-700' : 'bg-orange-100 text-orange-700'}`}>
+                                {t.tipo === 'aporte' ? 'Aporte' : 'Retirada'}
+                              </span>
+                            </td>
                             <td className="py-3 px-4 text-slate-800 font-medium">{t.descricao}</td>
-                            <td className="py-3 px-4 text-slate-600 text-right">R$ {parseFloat(t.valor).toFixed(2)}</td>
+                            <td className={`py-3 px-4 text-right font-medium ${t.tipo === 'aporte' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                              {t.tipo === 'aporte' ? '+' : '-'} R$ {parseFloat(t.valor).toFixed(2)}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-center py-4">Nenhuma retirada registrada neste mês.</p>
+                  <p className="text-slate-500 text-center py-4">Nenhuma movimentação registrada neste mês.</p>
                 )}
               </div>
             </div>
