@@ -539,7 +539,7 @@ export default function App() {
       id: generateUUID(),
       dataCadastro: new Date().toLocaleDateString('pt-BR'),
       arquivos: fileUrls,
-      simulacoes: [simulacao]
+      simulacoes: [{ ...simulacao, status: 'pendente', dataCriacao: new Date().toISOString() }]
     };
 
     try {
@@ -588,7 +588,8 @@ export default function App() {
     if (!selectedClient) return;
     
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const updatedSimulacoes = [simulacao, ...clientSimulacoes];
+    const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: new Date().toISOString() };
+    const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
     
     const updatedClient = {
       ...selectedClient,
@@ -972,18 +973,47 @@ export default function App() {
               <div key={simIndex} className="bg-white rounded-2xl shadow-xl overflow-hidden">
                 <div className="bg-yellow-500 px-8 py-6 text-white flex justify-between items-center">
                   <div>
-                    <h2 className="text-2xl font-bold">Empréstimo {clientSimulacoes.length > 1 ? `#${clientSimulacoes.length - simIndex}` : ''}</h2>
-                    <p className="text-yellow-100">Valor Solicitado: R$ {parseFloat(sim.valorSolicitado).toFixed(2)}</p>
+                    <h2 className="text-2xl font-bold flex items-center gap-3">
+                      Empréstimo {clientSimulacoes.length > 1 ? `#${clientSimulacoes.length - simIndex}` : ''}
+                      {sim.status === 'pendente' && <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full uppercase tracking-wider">Em Análise</span>}
+                      {sim.status === 'reprovado' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Reprovado</span>}
+                      {(sim.status === 'aprovado' || !sim.status) && <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>}
+                    </h2>
+                    <p className="text-yellow-100 mt-1">Valor Solicitado: R$ {parseFloat(sim.valorSolicitado).toFixed(2)}</p>
                   </div>
                 </div>
                 
                 <div className="p-8">
-                  <h3 className="text-xl font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
-                    <FileText size={20} className="text-yellow-500" />
-                    Suas Parcelas
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 gap-4">
+                  {sim.status === 'pendente' ? (
+                    <div className="text-center py-8">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 mb-4">
+                        <FileText size={32} />
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">Em Análise</h3>
+                      <p className="text-slate-500 max-w-md mx-auto">
+                        Sua solicitação de empréstimo está sendo analisada pela nossa equipe. 
+                        Você será notificado assim que houver uma atualização.
+                      </p>
+                    </div>
+                  ) : sim.status === 'reprovado' ? (
+                    <div className="text-center py-8">
+                      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-100 text-red-600 mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">Solicitação Reprovada</h3>
+                      <p className="text-slate-500 max-w-md mx-auto">
+                        Infelizmente, sua solicitação de empréstimo não foi aprovada neste momento.
+                        Entre em contato conosco para mais informações.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="text-xl font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
+                        <FileText size={20} className="text-yellow-500" />
+                        Suas Parcelas
+                      </h3>
+                      
+                      <div className="grid grid-cols-1 gap-4">
                     {sim.parcelas.map((p: any, i: number) => {
                       const hoje = new Date();
                       hoje.setHours(0,0,0,0);
@@ -1049,6 +1079,8 @@ export default function App() {
                       );
                     })}
                   </div>
+                  </>
+                  )}
                 </div>
               </div>
             ))}
@@ -1194,7 +1226,9 @@ export default function App() {
 
   if (view === 'admin') {
     const cronogramaParcelas = clients.flatMap(c => 
-      (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).flatMap((s: any, sIdx: number) => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .flatMap((s: any, sIdx: number) => 
         (s.parcelas || []).map((p: any, pIdx: number) => ({
           ...p,
           clientId: c.id,
@@ -1209,7 +1243,9 @@ export default function App() {
     const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
 
     const monthEntradas = clients.flatMap(c => 
-      (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).flatMap((s: any) => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => p.status === 'pago' && p.dataPagamento?.startsWith(fluxoMonth))
       )
     ).reduce((acc, p) => acc + p.valor, 0);
@@ -1218,7 +1254,7 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
         // If sim has dataCriacao, use it. Otherwise use client's dataCadastro
         const date = s.dataCriacao || c.dataCadastro;
-        return date && date.startsWith(fluxoMonth);
+        return date && date.startsWith(fluxoMonth) && s.status !== 'pendente' && s.status !== 'reprovado';
       })
     ).reduce((acc, s) => acc + (s.valorSolicitado || 0), 0);
 
@@ -1284,6 +1320,35 @@ export default function App() {
         alert('Retirada adicionada com sucesso!');
       } catch (error) {
         alert('Erro ao adicionar retirada.');
+      }
+    };
+
+    const handleAprovarSimulacao = async (simIndex: number, aprovar: boolean) => {
+      if (!selectedClient) return;
+      
+      const updatedSimulacoes = [...selectedClient.simulacoes];
+      updatedSimulacoes[simIndex] = {
+        ...updatedSimulacoes[simIndex],
+        status: aprovar ? 'aprovado' : 'reprovado'
+      };
+      
+      const updatedClient = {
+        ...selectedClient,
+        simulacoes: updatedSimulacoes
+      };
+      
+      try {
+        await fetch(`/api/clients/${selectedClient.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedClient)
+        });
+        
+        setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
+        setSelectedClient(updatedClient);
+      } catch (error) {
+        console.error("Erro ao atualizar status da simulação:", error);
+        alert("Erro ao atualizar status.");
       }
     };
 
@@ -1501,10 +1566,36 @@ export default function App() {
                   <div className="md:col-span-2 mt-4 space-y-8">
                     {selectedClient.simulacoes.map((sim: any, simIndex: number) => (
                       <div key={simIndex} className="bg-slate-50 rounded-xl p-6 border border-slate-200">
-                        <h3 className="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
-                          <span className="bg-yellow-100 text-yellow-600 p-1.5 rounded-lg"><FileText size={20} /></span>
-                          Detalhes do Empréstimo {selectedClient.simulacoes.length > 1 ? `#${selectedClient.simulacoes.length - simIndex}` : ''}
-                        </h3>
+                        <div className="flex justify-between items-center mb-4 border-b pb-2">
+                          <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <span className="bg-yellow-100 text-yellow-600 p-1.5 rounded-lg"><FileText size={20} /></span>
+                            Detalhes do Empréstimo {selectedClient.simulacoes.length > 1 ? `#${selectedClient.simulacoes.length - simIndex}` : ''}
+                          </h3>
+                          <div className="flex items-center gap-2">
+                            {sim.status === 'pendente' && (
+                              <>
+                                <button
+                                  onClick={() => handleAprovarSimulacao(simIndex, true)}
+                                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                                >
+                                  Aprovar (Sim)
+                                </button>
+                                <button
+                                  onClick={() => handleAprovarSimulacao(simIndex, false)}
+                                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium text-sm transition-colors"
+                                >
+                                  Reprovar (Não)
+                                </button>
+                              </>
+                            )}
+                            {(sim.status === 'aprovado' || !sim.status) && (
+                              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">Aprovado</span>
+                            )}
+                            {sim.status === 'reprovado' && (
+                              <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
+                            )}
+                          </div>
+                        </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                           <div>
@@ -1522,25 +1613,27 @@ export default function App() {
                           </div>
                         </div>
 
-                        <div className="flex justify-between items-center mb-3">
-                          <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
-                          <div className="flex gap-2 print:hidden">
-                            <button 
-                              onClick={() => window.print()}
-                              className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
-                            >
-                              Imprimir
-                            </button>
-                            <button 
-                              onClick={() => window.print()}
-                              className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors text-sm"
-                            >
-                              <Download size={16} />
-                              Salvar PDF
-                            </button>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4">
+                        {(sim.status === 'aprovado' || !sim.status) && (
+                          <>
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
+                              <div className="flex gap-2 print:hidden">
+                                <button 
+                                  onClick={() => window.print()}
+                                  className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
+                                >
+                                  Imprimir
+                                </button>
+                                <button 
+                                  onClick={() => window.print()}
+                                  className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors text-sm"
+                                >
+                                  <Download size={16} />
+                                  Salvar PDF
+                                </button>
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-4">
                           {sim.parcelas.map((p: any, i: number) => {
                             const hoje = new Date();
                             hoje.setHours(0,0,0,0);
@@ -1756,6 +1849,8 @@ export default function App() {
                             );
                           })}
                         </div>
+                        </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1788,7 +1883,14 @@ export default function App() {
                     <tbody>
                       {clients.filter(c => c.id !== 'admin-transactions').map(client => (
                         <tr key={client.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="py-4 px-6 font-medium text-slate-800">{client.nomeCompleto}</td>
+                          <td className="py-4 px-6 font-medium text-slate-800">
+                            <div className="flex items-center gap-2">
+                              {client.nomeCompleto}
+                              {client.simulacoes?.some((s: any) => s.status === 'pendente') && (
+                                <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">Análise Pendente</span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-4 px-6 text-slate-600">{client.cpf}</td>
                           <td className="py-4 px-6 text-slate-600">{client.telefone}</td>
                           <td className="py-4 px-6 text-slate-600">{client.dataCadastro}</td>
