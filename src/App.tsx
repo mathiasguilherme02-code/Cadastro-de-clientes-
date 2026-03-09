@@ -26,6 +26,7 @@ const initialFormData = {
   parenteEstado: '',
   quemIndicou: '',
   redesSociais: '',
+  atividadeFinanceira: '',
   documentos: null as FileList | null
 };
 
@@ -1455,6 +1456,7 @@ export default function App() {
                   
                   <h3 className="text-lg font-semibold text-slate-800 mb-4 mt-8 border-b pb-2">Outras Informações</h3>
                   <div className="space-y-3 text-sm">
+                    <p><span className="font-medium text-slate-500">Atividade Financeira:</span> {selectedClient.atividadeFinanceira || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Indicação:</span> {selectedClient.quemIndicou || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Redes Sociais:</span> {selectedClient.redesSociais || 'Não informado'}</p>
                   </div>
@@ -2435,6 +2437,11 @@ export default function App() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Qual a sua atividade financeira?</label>
+                <input type="text" name="atividadeFinanceira" value={formData.atividadeFinanceira} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Quem te indicou?</label>
                 <input type="text" name="quemIndicou" value={formData.quemIndicou} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
