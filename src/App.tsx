@@ -320,6 +320,12 @@ export default function App() {
     return true;
   };
 
+  const formatCurrency = (value: number | string) => {
+    const num = typeof value === 'string' ? parseFloat(value) : value;
+    if (isNaN(num)) return 'R$ 0,00';
+    return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  };
+
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
     const parts = dateString.split('-');
@@ -1007,7 +1013,7 @@ export default function App() {
                       {sim.status === 'reprovado' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Reprovado</span>}
                       {(sim.status === 'aprovado' || !sim.status) && <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>}
                     </h2>
-                    <p className="text-yellow-100 mt-1">Valor Solicitado: R$ {parseFloat(sim.valorSolicitado).toFixed(2)}</p>
+                    <p className="text-yellow-100 mt-1">Valor Solicitado: {formatCurrency(sim.valorSolicitado)}</p>
                   </div>
                 </div>
                 
@@ -1082,7 +1088,7 @@ export default function App() {
                             </div>
                             <div className="flex justify-between text-sm">
                               <span className="text-slate-500">Valor Original:</span> 
-                              <span className="font-medium text-slate-700">R$ {p.valor.toFixed(2)}</span>
+                              <span className="font-medium text-slate-700">{formatCurrency(p.valor)}</span>
                             </div>
                           </div>
                           
@@ -1098,7 +1104,7 @@ export default function App() {
                                 </div>
                                 <div className="flex justify-between text-lg font-bold text-red-700 mt-2 pt-2 border-t border-red-100">
                                   <span>Valor Atualizado:</span>
-                                  <span>R$ {valorAtualizado.toFixed(2)}</span>
+                                  <span>{formatCurrency(valorAtualizado)}</span>
                                 </div>
                               </div>
                             </div>
@@ -1370,7 +1376,37 @@ export default function App() {
       }
     };
 
-    const handleAprovarSimulacao = async (simIndex: number, aprovar: boolean) => {
+    const handleExcluirSimulacao = async (simIndex: number) => {
+    if (!selectedClient || !isAdmin) return;
+    
+    if (!window.confirm('Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+    
+    const updatedSimulacoes = [...selectedClient.simulacoes];
+    updatedSimulacoes.splice(simIndex, 1);
+    
+    const updatedClient = {
+      ...selectedClient,
+      simulacoes: updatedSimulacoes
+    };
+    
+    try {
+      await fetch(`/api/clients/${selectedClient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedClient)
+      });
+      
+      setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
+      setSelectedClient(updatedClient);
+    } catch (error) {
+      console.error('Error deleting simulacao:', error);
+      alert('Erro ao excluir empréstimo. Tente novamente.');
+    }
+  };
+
+  const handleAprovarSimulacao = async (simIndex: number, aprovar: boolean) => {
       if (!selectedClient) return;
       
       const updatedSimulacoes = [...selectedClient.simulacoes];
@@ -1641,13 +1677,22 @@ export default function App() {
                             {sim.status === 'reprovado' && (
                               <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
                             )}
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleExcluirSimulacao(simIndex)}
+                                className="ml-2 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                                title="Excluir Empréstimo"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            )}
                           </div>
                         </div>
                         
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                           <div>
                             <p className="text-sm text-slate-500">Valor Solicitado</p>
-                            <p className="text-lg font-semibold text-slate-800">R$ {parseFloat(sim.valorSolicitado).toFixed(2)}</p>
+                            <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.valorSolicitado)}</p>
                           </div>
                           <div>
                             <p className="text-sm text-slate-500">Prazo</p>
@@ -1865,7 +1910,7 @@ export default function App() {
                                       <span className="text-slate-500">Vencimento:</span> {formatDate(p.dataVencimento)}
                                     </div>
                                     <div>
-                                      <span className="text-slate-500">Valor:</span> R$ {p.valor.toFixed(2)}
+                                      <span className="text-slate-500">Valor:</span> {formatCurrency(p.valor)}
                                     </div>
                                   </div>
                                 )}
@@ -1879,7 +1924,7 @@ export default function App() {
                                       <div>Atraso: {diasAtraso} dias</div>
                                       <div>Taxa: {diasAtraso * (parseFloat(sim.taxaAtrasoDia) || 1)}%</div>
                                       <div className="col-span-2 font-bold text-sm mt-1">
-                                        Valor Atualizado: R$ {valorAtualizado.toFixed(2)}
+                                        Valor Atualizado: {formatCurrency(valorAtualizado)}
                                       </div>
                                     </div>
                                   </div>
@@ -1888,7 +1933,7 @@ export default function App() {
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de R$ ${p.valor.toFixed(2)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix, ou via motoboy até 17 horas.`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix, ou via motoboy até 17 horas.`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -2019,7 +2064,7 @@ export default function App() {
                           <td className="py-4 px-6 font-medium text-slate-800">{p.clientName}</td>
                           <td className="py-4 px-6 text-slate-600">{p.clientPhone}</td>
                           <td className="py-4 px-6 text-slate-600">{p.numero}</td>
-                          <td className="py-4 px-6 text-slate-600">R$ {p.valor.toFixed(2)}</td>
+                          <td className="py-4 px-6 text-slate-600">{formatCurrency(p.valor)}</td>
                           <td className="py-4 px-6">
                             <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
                               p.status === 'pago' ? 'bg-green-100 text-green-800' :
@@ -2077,27 +2122,27 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
                   <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-green-600 mb-1">Entradas (Pagamentos)</p>
-                    <p className="text-2xl font-bold text-green-700">R$ {monthEntradas.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-green-700">{formatCurrency(monthEntradas)}</p>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-emerald-600 mb-1">Aportes (Capital)</p>
-                    <p className="text-2xl font-bold text-emerald-700">R$ {monthAportes.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-emerald-700">{formatCurrency(monthAportes)}</p>
                   </div>
                   <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-red-600 mb-1">Saídas (Empréstimos)</p>
-                    <p className="text-2xl font-bold text-red-700">R$ {monthSaidas.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-red-700">{formatCurrency(monthSaidas)}</p>
                   </div>
                   <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-orange-600 mb-1">Retiradas / Despesas</p>
-                    <p className="text-2xl font-bold text-orange-700">R$ {monthRetiradas.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-orange-700">{formatCurrency(monthRetiradas)}</p>
                   </div>
                   <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
                     <p className="text-sm font-medium text-rose-600 mb-1">Inadimplência (Mês)</p>
-                    <p className="text-2xl font-bold text-rose-700">R$ {monthInadimplencia.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
                   <div className={`border p-4 rounded-xl ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                     <p className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
-                    <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>R$ {saldo.toFixed(2)}</p>
+                    <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
                   </div>
                 </div>
 
@@ -2185,7 +2230,7 @@ export default function App() {
                             </td>
                             <td className="py-3 px-4 text-slate-800 font-medium">{t.descricao}</td>
                             <td className={`py-3 px-4 text-right font-medium ${t.tipo === 'aporte' ? 'text-emerald-600' : 'text-orange-600'}`}>
-                              {t.tipo === 'aporte' ? '+' : '-'} R$ {parseFloat(t.valor).toFixed(2)}
+                              {t.tipo === 'aporte' ? '+' : '-'} {formatCurrency(t.valor)}
                             </td>
                           </tr>
                         ))}
@@ -2345,11 +2390,11 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
                       <p className="text-sm text-slate-500">Valor Solicitado</p>
-                      <p className="text-lg font-semibold text-slate-800">R$ {parseFloat(simulacao.valorSolicitado).toFixed(2)}</p>
+                      <p className="text-lg font-semibold text-slate-800">{formatCurrency(simulacao.valorSolicitado)}</p>
                     </div>
                     <div>
                       <p className="text-sm text-slate-500">Total de Parcelas</p>
-                      <p className="text-lg font-semibold text-slate-800">{simulacao.parcelas.length}x de R$ {simulacao.parcelas[0].valor.toFixed(2)}</p>
+                      <p className="text-lg font-semibold text-slate-800">{simulacao.parcelas.length}x de {formatCurrency(simulacao.parcelas[0].valor)}</p>
                     </div>
                   </div>
                   
@@ -2361,7 +2406,7 @@ export default function App() {
                           <span className="font-medium text-slate-700">Parcela {p.numero}</span>
                           <div className="text-right">
                             <div className="text-sm text-slate-500">Vencimento: {formatDate(p.dataVencimento)}</div>
-                            <div className="font-semibold text-yellow-600">R$ {p.valor.toFixed(2)}</div>
+                            <div className="font-semibold text-yellow-600">{formatCurrency(p.valor)}</div>
                           </div>
                         </div>
                       ))}
