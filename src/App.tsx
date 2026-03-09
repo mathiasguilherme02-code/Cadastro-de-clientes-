@@ -1248,7 +1248,7 @@ export default function App() {
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoMonth))
       )
-    ).reduce((acc, p) => acc + p.valor, 0);
+    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
 
     const monthInadimplencia = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
@@ -1262,7 +1262,7 @@ export default function App() {
           return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoMonth);
         })
       )
-    ).reduce((acc, p) => acc + p.valor, 0);
+    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
 
     const monthSaidas = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
@@ -1270,7 +1270,7 @@ export default function App() {
         const date = s.dataCriacao || c.dataCadastro;
         return date && date.startsWith(fluxoMonth) && s.status !== 'pendente' && s.status !== 'reprovado';
       })
-    ).reduce((acc, s) => acc + (s.valorSolicitado || 0), 0);
+    ).reduce((acc, s) => acc + parseFloat(s.valorSolicitado || 0), 0);
 
     const monthRetiradas = adminTransactions
       .filter((t: any) => t.data.startsWith(fluxoMonth) && t.tipo !== 'aporte')
