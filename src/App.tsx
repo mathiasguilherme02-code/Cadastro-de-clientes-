@@ -448,17 +448,17 @@ export default function App() {
       for (let i = 0; i < formData.documentos.length; i++) {
         totalSize += formData.documentos[i].size;
       }
-      if (totalSize > 8 * 1024 * 1024) {
-        alert("O tamanho total dos arquivos excede o limite de 8MB. Por favor, envie arquivos menores ou em menor quantidade.");
+      if (totalSize > 4 * 1024 * 1024) {
+        alert("O tamanho total dos arquivos excede o limite de 4MB. Por favor, envie arquivos menores ou em menor quantidade.");
         return;
       }
 
       for (let i = 0; i < formData.documentos.length; i++) {
         const file = formData.documentos[i];
         
-        // Limit file size to 5MB
-        if (file.size > 5 * 1024 * 1024) {
-          alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 5MB.`);
+        // Limit file size to 2MB
+        if (file.size > 2 * 1024 * 1024) {
+          alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 2MB.`);
           return; // Stop submission
         }
         
@@ -467,6 +467,7 @@ export default function App() {
           if (!file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve('');
             reader.readAsDataURL(file);
             return;
           }
@@ -511,6 +512,7 @@ export default function App() {
               resolve(e.target?.result as string);
             }
           };
+          reader.onerror = () => resolve('');
           reader.readAsDataURL(file);
         });
         

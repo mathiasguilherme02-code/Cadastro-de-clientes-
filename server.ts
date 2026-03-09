@@ -63,11 +63,18 @@ app.get('/api/events', (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // Prevent proxy buffering
   res.flushHeaders();
 
   sseClients.add(res);
 
+  // Send a ping every 15 seconds to keep the connection alive
+  const pingInterval = setInterval(() => {
+    res.write(': ping\n\n');
+  }, 15000);
+
   req.on('close', () => {
+    clearInterval(pingInterval);
     sseClients.delete(res);
   });
 });
