@@ -539,28 +539,44 @@ export default function App() {
       simulacoes: [simulacao]
     };
 
-    const response = await fetch('/api/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newClient)
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      const details = errorData.details ? JSON.stringify(errorData.details) : '';
-      alert(`Erro: ${errorData.error} ${details}`);
-      return;
+    try {
+      const payloadString = JSON.stringify(newClient);
+      const payload = payloadString;
+      
+      const response = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload
+      });
+      
+      if (!response.ok) {
+        let errorMsg = 'Erro desconhecido';
+        try {
+          const errorData = await response.json();
+          const details = errorData.details ? JSON.stringify(errorData.details) : '';
+          errorMsg = `${errorData.error} ${details}`;
+        } catch (e) {
+          errorMsg = `Status ${response.status}`;
+        }
+        alert(`Erro: ${errorMsg}`);
+        setIsSubmitting(false);
+        return;
+      }
+      
+      setClients(prev => [newClient, ...prev]);
+      setShowSuccessModal(true);
+      
+      // Reset form
+      setFormData(initialFormData);
+    } catch (error: any) {
+      console.error("Erro ao salvar cliente:", error);
+      alert(`Ocorreu um erro de conexão ao salvar o cadastro. Verifique sua internet ou tente novamente.`);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setClients(prev => [newClient, ...prev]);
-    setShowSuccessModal(true);
-    
-    // Reset form
-    setFormData(initialFormData);
   } catch (error: any) {
-    console.error("Erro ao salvar cliente:", error);
-    alert(`Ocorreu um erro ao salvar o cadastro: ${error.message || error}`);
-  } finally {
+    console.error("Erro ao processar arquivos:", error);
+    alert(`Ocorreu um erro ao processar os arquivos. Tente enviar imagens menores.`);
     setIsSubmitting(false);
   }
 };
@@ -577,10 +593,13 @@ export default function App() {
     };
     
     try {
+      const payloadString = JSON.stringify(updatedClient);
+      const payload = payloadString;
+      
       const response = await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedClient)
+        body: payload
       });
       
       if (!response.ok) {
@@ -595,7 +614,7 @@ export default function App() {
       alert('Novo empréstimo adicionado com sucesso!');
     } catch (error) {
       console.error("Erro ao adicionar empréstimo:", error);
-      alert("Ocorreu um erro ao salvar o empréstimo.");
+      alert("Ocorreu um erro de conexão ao salvar o empréstimo.");
     }
   };
 
