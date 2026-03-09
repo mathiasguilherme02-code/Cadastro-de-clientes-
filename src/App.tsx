@@ -30,6 +30,34 @@ const initialFormData = {
   documentos: null as FileList | null
 };
 
+const getLocalISODate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalISOMonth = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+};
+
+const getLocalISODateTime = (date = new Date()) => {
+  const d = getLocalISODate(date);
+  const t = date.toTimeString().split(' ')[0];
+  return `${d}T${t}`;
+};
+
+const parseLocalDate = (dateString: string) => {
+  if (!dateString) return new Date();
+  const parts = dateString.split('-');
+  if (parts.length === 3) {
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  }
+  return new Date(dateString);
+};
+
 export default function App() {
   const [view, setView] = useState<'welcome' | 'simulation' | 'form' | 'admin_login' | 'admin' | 'client_login' | 'client_dashboard'>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -38,9 +66,9 @@ export default function App() {
     return 'welcome';
   });
   const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa'>('clientes');
-  const [cronogramaDate, setCronogramaDate] = useState(new Date().toISOString().split('T')[0]);
-  const [fluxoMonth, setFluxoMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
-  const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0], tipo: 'retirada' });
+  const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
+  const [fluxoMonth, setFluxoMonth] = useState(getLocalISOMonth()); // YYYY-MM
+  const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
   
   const [adminPassword, setAdminPassword] = useState('');
   const [adminToken, setAdminToken] = useState('');
@@ -330,7 +358,7 @@ export default function App() {
 
       novasParcelas.push({
         numero: i,
-        dataVencimento: dataVencimento.toISOString().split('T')[0],
+        dataVencimento: getLocalISODate(dataVencimento),
         valor: valorParcela,
         paga: false
       });
@@ -537,9 +565,9 @@ export default function App() {
     const newClient = {
       ...formData,
       id: generateUUID(),
-      dataCadastro: new Date().toLocaleDateString('pt-BR'),
+      dataCadastro: getLocalISODateTime(),
       arquivos: fileUrls,
-      simulacoes: [{ ...simulacao, status: 'pendente', dataCriacao: new Date().toISOString() }]
+      simulacoes: [{ ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() }]
     };
 
     try {
@@ -588,7 +616,7 @@ export default function App() {
     if (!selectedClient) return;
     
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: new Date().toISOString() };
+    const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
     
     const updatedClient = {
@@ -1017,7 +1045,7 @@ export default function App() {
                     {sim.parcelas.map((p: any, i: number) => {
                       const hoje = new Date();
                       hoje.setHours(0,0,0,0);
-                      const vencimento = new Date(p.dataVencimento);
+                      const vencimento = parseLocalDate(p.dataVencimento);
                       vencimento.setHours(0,0,0,0);
                       
                       const isVencida = !p.paga && vencimento < hoje;
@@ -1257,7 +1285,7 @@ export default function App() {
         (s.parcelas || []).filter((p: any) => {
           const hoje = new Date();
           hoje.setHours(0,0,0,0);
-          const vencimento = new Date(p.dataVencimento);
+          const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0,0,0,0);
           return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoMonth);
         })
@@ -1286,7 +1314,7 @@ export default function App() {
       e.preventDefault();
       if (!newRetirada.valor || !newRetirada.descricao) return;
 
-      const adminClient = clients.find(c => c.id === '00000000-0000-0000-0000-000000000000');
+      const adminClient = clients.find(c => c.id === 'admin-transactions');
       const generateUUID = () => {
         if (typeof crypto !== 'undefined' && crypto.randomUUID) {
           return crypto.randomUUID();
@@ -1322,10 +1350,10 @@ export default function App() {
           setClients(clients.map(c => c.id === adminClient.id ? updatedClient : c));
         } else {
           const newAdminClient = {
-            id: '00000000-0000-0000-0000-000000000000',
+            id: 'admin-transactions',
             nomeCompleto: 'Admin Transactions',
             cpf: '00000000000',
-            dataCadastro: new Date().toISOString(),
+            dataCadastro: getLocalISODateTime(),
             dados: { retiradas: [transaction] }
           };
           await fetch('/api/clients', {
@@ -1335,7 +1363,7 @@ export default function App() {
           });
           setClients([...clients, newAdminClient]);
         }
-        setNewRetirada({ valor: '', descricao: '', data: new Date().toISOString().split('T')[0], tipo: 'retirada' });
+        setNewRetirada({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
         alert('Retirada adicionada com sucesso!');
       } catch (error) {
         alert('Erro ao adicionar retirada.');
@@ -1656,7 +1684,7 @@ export default function App() {
                           {sim.parcelas.map((p: any, i: number) => {
                             const hoje = new Date();
                             hoje.setHours(0,0,0,0);
-                            const vencimento = new Date(p.dataVencimento);
+                            const vencimento = parseLocalDate(p.dataVencimento);
                             vencimento.setHours(0,0,0,0);
                             
                             const isVencida = !p.paga && vencimento < hoje;
@@ -1711,7 +1739,7 @@ export default function App() {
                                               ...novasParcelas[i], 
                                               paga: isNowPaid,
                                               status: isNowPaid ? 'pago' : 'pendente',
-                                              dataPagamento: isNowPaid ? new Date().toISOString().split('T')[0] : null
+                                              dataPagamento: isNowPaid ? getLocalISODate() : null
                                             };
                                             updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                             
