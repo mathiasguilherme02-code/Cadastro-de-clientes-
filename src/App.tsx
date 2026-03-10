@@ -1377,7 +1377,7 @@ export default function App() {
     };
 
     const handleExcluirSimulacao = async (simIndex: number) => {
-    if (!selectedClient || !isAdmin) return;
+    if (!selectedClient) return;
     
     if (!window.confirm('Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.')) {
       return;
@@ -1677,15 +1677,13 @@ export default function App() {
                             {sim.status === 'reprovado' && (
                               <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
                             )}
-                            {isAdmin && (
-                              <button
-                                onClick={() => handleExcluirSimulacao(simIndex)}
-                                className="ml-2 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
-                                title="Excluir Empréstimo"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleExcluirSimulacao(simIndex)}
+                              className="ml-2 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                              title="Excluir Empréstimo"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                           </div>
                         </div>
                         
