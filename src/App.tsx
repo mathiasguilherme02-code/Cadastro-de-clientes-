@@ -1269,7 +1269,8 @@ export default function App() {
           clientName: c.nomeCompleto,
           clientPhone: c.telefone,
           simIndex: sIdx,
-          parcelaIndex: pIdx
+          parcelaIndex: pIdx,
+          taxaAtrasoDia: s.taxaAtrasoDia
         }))
       )
     ).filter(p => p.dataVencimento === cronogramaDate);
@@ -1928,6 +1929,20 @@ export default function App() {
                                   </div>
                                 )}
 
+                                {isVencida && !isEditing && (
+                                  <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
+                                    <a 
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                                    >
+                                      <Phone size={16} />
+                                      Notificar Parcela Vencida via WhatsApp
+                                    </a>
+                                  </div>
+                                )}
+
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
@@ -2073,18 +2088,51 @@ export default function App() {
                             </span>
                           </td>
                           <td className="py-4 px-6 text-right">
-                            <button 
-                              onClick={() => {
-                                const client = clients.find(c => c.id === p.clientId);
-                                if (client) {
-                                  setSelectedClient(client);
-                                  setAdminTab('clientes');
-                                }
-                              }}
-                              className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
-                            >
-                              Ver Cliente
-                            </button>
+                            <div className="flex items-center justify-end gap-2">
+                              {!p.paga && (
+                                <a 
+                                  href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                    (() => {
+                                      const hoje = new Date();
+                                      hoje.setHours(0,0,0,0);
+                                      const vencimento = parseLocalDate(p.dataVencimento);
+                                      vencimento.setHours(0,0,0,0);
+                                      const isVencida = !p.paga && vencimento < hoje;
+                                      const isVencendoHoje = !p.paga && vencimento.getTime() === hoje.getTime();
+                                      
+                                      if (isVencendoHoje) {
+                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix, ou via motoboy até 17 horas.`;
+                                      } else if (isVencida) {
+                                        const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
+                                        const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
+                                        const valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                      }
+                                      return '';
+                                    })()
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
+                                  title="Notificar via WhatsApp"
+                                >
+                                  <Phone size={18} />
+                                </a>
+                              )}
+                              <button 
+                                onClick={() => {
+                                  const client = clients.find(c => c.id === p.clientId);
+                                  if (client) {
+                                    setSelectedClient(client);
+                                    setAdminTab('clientes');
+                                  }
+                                }}
+                                className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
+                              >
+                                Ver Cliente
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
