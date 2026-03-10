@@ -2305,6 +2305,17 @@ export default function App() {
             Fale conosco
           </a>
           <button 
+            onClick={() => {
+              setView('form');
+              setSelectedClient(null);
+              setFormData(initialFormData);
+            }}
+            className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
+          >
+            <UserPlus size={16} />
+            Cadastro de Clientes
+          </button>
+          <button 
             onClick={() => setView('client_login')}
             className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
           >
