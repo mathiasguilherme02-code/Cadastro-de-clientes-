@@ -576,7 +576,7 @@ export default function App() {
       id: generateUUID(),
       dataCadastro: getLocalISODateTime(),
       arquivos: fileUrls,
-      simulacoes: [{ ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() }]
+      simulacoes: simulacao.valorSolicitado ? [{ ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() }] : []
     };
 
     try {
@@ -960,7 +960,8 @@ export default function App() {
   }
 
   if (view === 'client_dashboard' && selectedClient) {
-    const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+    const rawSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+    const clientSimulacoes = rawSimulacoes.filter((s: any) => s && s.valorSolicitado);
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3">
@@ -1006,7 +1007,18 @@ export default function App() {
           </div>
 
           <div className="space-y-8">
-            {clientSimulacoes.map((sim: any, simIndex: number) => (
+            {clientSimulacoes.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 mb-4">
+                  <CheckCircle2 size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Cadastro Enviado com Sucesso!</h3>
+                <p className="text-slate-500 max-w-md mx-auto">
+                  Seu cadastro foi recebido por nossa equipe. Você pode fazer uma nova simulação de empréstimo clicando no botão acima.
+                </p>
+              </div>
+            ) : (
+              clientSimulacoes.map((sim: any, simIndex: number) => (
               <div key={simIndex} className="bg-white rounded-2xl shadow-xl overflow-hidden">
                 <div className="bg-yellow-500 px-8 py-6 text-white flex justify-between items-center">
                   <div>
@@ -1120,7 +1132,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-            ))}
+            )))}
           </div>
         </div>
       </div>
@@ -1773,6 +1785,23 @@ export default function App() {
                 </div>
                 <div className="flex gap-3 print:hidden">
                   <button 
+                    onClick={() => {
+                      setSimulacao({
+                        valorSolicitado: '',
+                        prazo: 'mensal',
+                        quantidade: '1',
+                        parcelas: [],
+                        taxaJuros: adminSettings.taxaJuros,
+                        taxaAtrasoDia: adminSettings.taxaAtrasoDia
+                      });
+                      setView('simulation');
+                    }}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Calculator size={18} />
+                    Nova Simulação
+                  </button>
+                  <button 
                     onClick={() => setClientToDelete(selectedClient)}
                     className="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                   >
@@ -2178,7 +2207,17 @@ export default function App() {
                     </h3>
                     <p className="text-slate-500 text-sm">Este cliente possui um empréstimo no formato antigo. Por favor, atualize os dados se necessário.</p>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="md:col-span-2 mt-4 bg-slate-50 border border-slate-200 rounded-xl p-8 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-200 text-slate-500 mb-4">
+                      <FileText size={32} />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 mb-2">Sem Empréstimos</h3>
+                    <p className="text-slate-500 max-w-md mx-auto">
+                      Este cliente preencheu apenas a ficha de cadastro e ainda não possui nenhuma simulação de empréstimo.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           ) : !selectedClient && adminTab === 'clientes' ? (
