@@ -27,6 +27,7 @@ const initialFormData = {
   quemIndicou: '',
   redesSociais: '',
   atividadeFinanceira: '',
+  observacoes: '',
   documentos: null as FileList | null
 };
 
@@ -1811,6 +1812,10 @@ export default function App() {
                     <p><span className="font-medium text-slate-500">Atividade Financeira:</span> {selectedClient.atividadeFinanceira || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Indicação:</span> {selectedClient.quemIndicou || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Redes Sociais:</span> {selectedClient.redesSociais || 'Não informado'}</p>
+                    <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                      <p className="font-medium text-slate-500 mb-1">Observações Gerais:</p>
+                      <p className="text-slate-700 whitespace-pre-wrap">{selectedClient.observacoes || 'Nenhuma observação registrada.'}</p>
+                    </div>
                   </div>
                 </div>
 
@@ -3061,6 +3066,17 @@ export default function App() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Redes sociais (Instagram, Facebook, etc)</label>
                 <input type="text" name="redesSociais" value={formData.redesSociais} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="@seuperfil" />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Observações Gerais</label>
+                <textarea 
+                  name="observacoes" 
+                  value={formData.observacoes} 
+                  onChange={handleInputChange} 
+                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all min-h-[120px]" 
+                  placeholder="Informações relevantes sobre o cliente, referências, bens oferecidos como garantia, etc."
+                />
               </div>
             </div>
           </section>
