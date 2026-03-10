@@ -1591,7 +1591,8 @@ export default function App() {
     
     const updatedClient = {
       ...selectedClient,
-      simulacoes: updatedSimulacoes
+      simulacoes: updatedSimulacoes,
+      simulacao: null
     };
     
     try {
