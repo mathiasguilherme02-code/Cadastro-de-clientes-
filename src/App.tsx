@@ -2846,6 +2846,13 @@ export default function App() {
       </div>
       <div className="absolute top-4 right-4 flex gap-3">
         <button 
+          onClick={() => setView('welcome')}
+          className="flex items-center gap-2 bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm text-sm font-semibold"
+        >
+          <ArrowLeft size={16} />
+          Voltar à página inicial
+        </button>
+        <button 
           onClick={() => setShowHowItWorksModal(true)}
           className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
         >
