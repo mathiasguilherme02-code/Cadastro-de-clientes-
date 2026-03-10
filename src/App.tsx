@@ -1910,11 +1910,10 @@ export default function App() {
                           </div>
                         </div>
 
-                        {(sim.status === 'aprovado' || !sim.status) && (
-                          <>
-                            <div className="flex justify-between items-center mb-3">
-                              <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
-                              <div className="flex gap-2 print:hidden">
+                        <>
+                          <div className="flex justify-between items-center mb-3">
+                            <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
+                            <div className="flex gap-2 print:hidden">
                                 <button 
                                   onClick={() => window.print()}
                                   className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
@@ -2167,7 +2166,6 @@ export default function App() {
                           })}
                         </div>
                         </>
-                        )}
                       </div>
                     ))}
                   </div>
