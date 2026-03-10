@@ -1281,30 +1281,49 @@ export default function App() {
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
-          .flatMap((s: any) => 
+          .flatMap((s: any, sIdx: number) => 
             (s.parcelas || []).filter((p: any) => p.paga).map((p: any) => ({
+              id: `p-${c.id}-${sIdx}-${p.numero}`,
               data: p.dataPagamento || p.dataVencimento,
               tipo: 'entrada',
-              descricao: `Pagamento: ${c.nomeCompleto} - Parcela ${p.numero}`,
-              valor: parseFloat(p.valor || 0)
+              descricao: `Pagamento: ${c.nomeCompleto}`,
+              detalhes: `Parcela ${p.numero} - CPF: ${c.cpf}`,
+              valor: parseFloat(p.valor || 0),
+              clienteId: c.id
             }))
           )
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
-          .map((s: any) => ({
+          .map((s: any, sIdx: number) => ({
+            id: `s-${c.id}-${sIdx}`,
             data: s.dataCriacao || c.dataCadastro || getLocalISODate(),
             tipo: 'saida',
             descricao: `Empréstimo: ${c.nomeCompleto}`,
-            valor: parseFloat(s.valorSolicitado || 0)
+            detalhes: `Liberação de Crédito - CPF: ${c.cpf}`,
+            valor: parseFloat(s.valorSolicitado || 0),
+            clienteId: c.id
           }))
       ),
       ...adminTransactions.map((t: any) => ({
         ...t,
+        detalhes: t.descricao,
         valor: parseFloat(t.valor || 0)
       }))
     ];
+
+    // Sort all transactions by date to calculate running balance
+    const sortedAllTransactions = [...unifiedTransactions].sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime());
+    let runningBalance = 0;
+    const transactionsWithBalance = sortedAllTransactions.map(t => {
+      if (['entrada', 'aporte'].includes(t.tipo)) {
+        runningBalance += t.valor;
+      } else {
+        runningBalance -= t.valor;
+      }
+      return { ...t, saldoApos: runningBalance };
+    });
 
     const monthEntradas = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
@@ -1812,7 +1831,7 @@ export default function App() {
                                               ...novasParcelas[i], 
                                               paga: isNowPaid,
                                               status: isNowPaid ? 'pago' : 'pendente',
-                                              dataPagamento: isNowPaid ? getLocalISODate() : null
+                                              dataPagamento: isNowPaid ? getLocalISODateTime() : null
                                             };
                                             updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                             
@@ -2280,26 +2299,27 @@ export default function App() {
 
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoMonth})</h3>
-                {unifiedTransactions.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
+                {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                           <th className="py-3 px-4 font-semibold text-slate-700">Data</th>
                           <th className="py-3 px-4 font-semibold text-slate-700">Tipo</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700">Descrição</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700">Descrição Detalhada</th>
                           <th className="py-3 px-4 font-semibold text-slate-700 text-right">Valor</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Saldo</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {unifiedTransactions
+                        {[...transactionsWithBalance]
                           .filter((t: any) => t.data.startsWith(fluxoMonth))
                           .sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())
                           .map((t: any, idx: number) => (
-                          <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                            <td className="py-3 px-4 text-slate-600">{t.data.split('-').reverse().join('/')}</td>
+                          <tr key={t.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{t.data.split('-').reverse().join('/')}</td>
                             <td className="py-3 px-4">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${
                                 t.tipo === 'aporte' ? 'bg-emerald-100 text-emerald-700' : 
                                 t.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 
                                 t.tipo === 'saida' ? 'bg-red-100 text-red-700' : 
@@ -2311,9 +2331,15 @@ export default function App() {
                                  'Retirada'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-slate-800 font-medium">{t.descricao}</td>
-                            <td className={`py-3 px-4 text-right font-medium ${['aporte', 'entrada'].includes(t.tipo) ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            <td className="py-3 px-4">
+                              <div className="text-slate-800 font-semibold">{t.descricao}</div>
+                              <div className="text-xs text-slate-500">{t.detalhes}</div>
+                            </td>
+                            <td className={`py-3 px-4 text-right font-bold ${['aporte', 'entrada'].includes(t.tipo) ? 'text-emerald-600' : 'text-rose-600'}`}>
                               {['aporte', 'entrada'].includes(t.tipo) ? '+' : '-'} {formatCurrency(t.valor)}
+                            </td>
+                            <td className="py-3 px-4 text-right font-medium text-slate-600 bg-slate-50/50">
+                              {formatCurrency(t.saldoApos)}
                             </td>
                           </tr>
                         ))}
