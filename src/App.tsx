@@ -97,6 +97,14 @@ export default function App() {
     taxaAtrasoDia: '1',
     parcelas: [] as any[]
   });
+  const [editingSimIndex, setEditingSimIndex] = useState<number | null>(null);
+  const [editSimData, setEditSimData] = useState({
+    valorSolicitado: '',
+    prazo: 'mensal',
+    quantidade: '1',
+    taxaJuros: '15',
+    taxaAtrasoDia: '1'
+  });
 
   useEffect(() => {
     // Fetch initial data
@@ -1591,7 +1599,90 @@ export default function App() {
       }
     };
 
-    const handleExcluirSimulacao = async (simIndex: number) => {
+    const startEditingSimulacao = (simIndex: number, sim: any) => {
+    setEditingSimIndex(simIndex);
+    setEditSimData({
+      valorSolicitado: sim.valorSolicitado || '',
+      prazo: sim.prazo || 'mensal',
+      quantidade: sim.quantidade || '1',
+      taxaJuros: sim.taxaJuros || adminSettings.taxaJuros,
+      taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia
+    });
+  };
+
+  const cancelEditingSimulacao = () => {
+    setEditingSimIndex(null);
+  };
+
+  const saveEditingSimulacao = async (simIndex: number) => {
+    if (!selectedClient) return;
+
+    const valor = parseFloat(editSimData.valorSolicitado);
+    if (!valor || isNaN(valor)) {
+      alert('Valor solicitado inválido.');
+      return;
+    }
+
+    const qtd = editSimData.prazo === 'única' ? 1 : parseInt(editSimData.quantidade) || 1;
+    const taxa = parseFloat(editSimData.taxaJuros) || 15;
+    
+    const valorTotal = valor + (valor * (taxa / 100));
+    const valorParcela = valorTotal / qtd;
+
+    const novasParcelas = [];
+    let dataAtual = new Date();
+
+    for (let i = 1; i <= qtd; i++) {
+      let dataVencimento = new Date(dataAtual);
+      if (editSimData.prazo === 'dia') {
+        dataVencimento.setDate(dataVencimento.getDate() + i);
+      } else if (editSimData.prazo === 'semanal') {
+        dataVencimento.setDate(dataVencimento.getDate() + (i * 7));
+      } else if (editSimData.prazo === 'quinzenal') {
+        dataVencimento.setDate(dataVencimento.getDate() + (i * 15));
+      } else if (editSimData.prazo === 'mensal') {
+        dataVencimento.setMonth(dataVencimento.getMonth() + i);
+      } else if (editSimData.prazo === 'única') {
+        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+      }
+
+      novasParcelas.push({
+        numero: i,
+        dataVencimento: getLocalISODate(dataVencimento),
+        valor: valorParcela,
+        status: 'pendente'
+      });
+    }
+
+    const updatedSimulacoes = [...selectedClient.simulacoes];
+    updatedSimulacoes[simIndex] = {
+      ...updatedSimulacoes[simIndex],
+      ...editSimData,
+      parcelas: novasParcelas
+    };
+
+    const updatedClient = {
+      ...selectedClient,
+      simulacoes: updatedSimulacoes
+    };
+
+    try {
+      await fetch(`/api/clients/${selectedClient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedClient)
+      });
+      
+      setSelectedClient(updatedClient);
+      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      setEditingSimIndex(null);
+    } catch (error) {
+      console.error("Erro ao salvar simulação:", error);
+      alert('Erro ao salvar empréstimo.');
+    }
+  };
+
+  const handleExcluirSimulacao = async (simIndex: number) => {
     if (!selectedClient) return;
     
     if (!window.confirm('Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.')) {
@@ -1915,6 +2006,13 @@ export default function App() {
                               <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
                             )}
                             <button
+                              onClick={() => startEditingSimulacao(simIndex, sim)}
+                              className="ml-2 text-indigo-500 hover:text-indigo-700 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                              title="Editar Empréstimo"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                            </button>
+                            <button
                               onClick={() => handleExcluirSimulacao(simIndex)}
                               className="ml-2 text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
                               title="Excluir Empréstimo"
@@ -1924,32 +2022,97 @@ export default function App() {
                           </div>
                         </div>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                          <div>
-                            <p className="text-sm text-slate-500">Valor Solicitado</p>
-                            <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.valorSolicitado)}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-slate-500">Prazo</p>
-                            <p className="text-lg font-semibold text-slate-800 capitalize">{sim.prazo}</p>
-                          </div>
-                          <div className="col-span-2 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
-                            <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
-                            <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}%</p>
-                            <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + Taxa de Juros / pelas parcelas</p>
-                          </div>
-                        </div>
-
-                        <>
-                          <div className="flex justify-between items-center mb-3">
-                            <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
-                            <div className="flex gap-2 print:hidden">
-                                <button 
-                                  onClick={() => window.print()}
-                                  className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
+                        {editingSimIndex === simIndex ? (
+                          <div className="bg-white p-6 rounded-xl border border-indigo-100 shadow-sm mb-6">
+                            <h4 className="font-semibold text-indigo-800 mb-4">Editar Empréstimo</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Valor Solicitado (R$)</label>
+                                <input
+                                  type="number"
+                                  value={editSimData.valorSolicitado}
+                                  onChange={(e) => setEditSimData({...editSimData, valorSolicitado: e.target.value})}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Prazo</label>
+                                <select
+                                  value={editSimData.prazo}
+                                  onChange={(e) => setEditSimData({...editSimData, prazo: e.target.value})}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                 >
-                                  Imprimir
-                                </button>
+                                  <option value="dia">Diário</option>
+                                  <option value="semanal">Semanal</option>
+                                  <option value="quinzenal">Quinzenal</option>
+                                  <option value="mensal">Mensal</option>
+                                  <option value="única">Parcela Única</option>
+                                </select>
+                              </div>
+                              {editSimData.prazo !== 'única' && (
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-700 mb-1">Quantidade de Parcelas</label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={editSimData.quantidade}
+                                    onChange={(e) => setEditSimData({...editSimData, quantidade: e.target.value})}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                  />
+                                </div>
+                              )}
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros (%)</label>
+                                <input
+                                  type="number"
+                                  value={editSimData.taxaJuros}
+                                  onChange={(e) => setEditSimData({...editSimData, taxaJuros: e.target.value})}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-3 mt-6">
+                              <button
+                                onClick={cancelEditingSimulacao}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors font-medium"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                onClick={() => saveEditingSimulacao(simIndex)}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-medium"
+                              >
+                                Salvar Alterações
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                              <div>
+                                <p className="text-sm text-slate-500">Valor Solicitado</p>
+                                <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.valorSolicitado)}</p>
+                              </div>
+                              <div>
+                                <p className="text-sm text-slate-500">Prazo</p>
+                                <p className="text-lg font-semibold text-slate-800 capitalize">{sim.prazo}</p>
+                              </div>
+                              <div className="col-span-2 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                                <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
+                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}%</p>
+                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + Taxa de Juros / pelas parcelas</p>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center mb-3">
+                              <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
+                                <div className="flex gap-2 print:hidden">
+                                    <button 
+                                      onClick={() => window.print()}
+                                      className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
+                                    >
+                                      Imprimir
+                                    </button>
                                 <button 
                                   onClick={() => window.print()}
                                   className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors text-sm"
@@ -2196,6 +2359,7 @@ export default function App() {
                           })}
                         </div>
                         </>
+                        )}
                       </div>
                     ))}
                   </div>
