@@ -80,6 +80,8 @@ export default function App() {
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [editingParcela, setEditingParcela] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
   const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0});
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+  const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
   const [adminSettings, setAdminSettings] = useState({
     taxaJuros: '40',
@@ -1419,9 +1421,160 @@ export default function App() {
           setClients([...clients, newAdminClient]);
         }
         setNewRetirada({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
-        alert('Retirada adicionada com sucesso!');
+        alert('Movimentação adicionada com sucesso!');
       } catch (error) {
-        alert('Erro ao adicionar retirada.');
+        alert('Erro ao adicionar movimentação.');
+      }
+    };
+
+    const handleEditFluxoItem = (item: any) => {
+      setEditingTransaction(item);
+      setEditTransactionData({
+        valor: item.valor.toString(),
+        descricao: item.descricao,
+        data: item.data.split('T')[0],
+        tipo: item.tipo
+      });
+    };
+
+    const handleSaveFluxoEdit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingTransaction) return;
+
+      const { id, tipo } = editingTransaction;
+      const newVal = parseFloat(editTransactionData.valor);
+      const newDate = editTransactionData.data;
+      const newDesc = editTransactionData.descricao;
+      const newTipo = editTransactionData.tipo;
+
+      try {
+        if (tipo === 'aporte' || tipo === 'retirada') {
+          const adminClient = clients.find(c => c.id === 'admin-transactions');
+          if (!adminClient) return;
+          const updatedRetiradas = adminClient.dados.retiradas.map((t: any) => 
+            t.id === id ? { ...t, valor: newVal, descricao: newDesc, data: newDate, tipo: newTipo } : t
+          );
+          const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
+          await saveClientUpdate(updatedClient);
+        } else if (tipo === 'entrada') {
+          const parts = id.split('-');
+          const cId = parts[1];
+          const sIdx = parseInt(parts[2]);
+          const pNum = parseInt(parts[3]);
+          
+          const client = clients.find(c => c.id === cId);
+          if (!client) return;
+          
+          const updatedSimulacoes = [...client.simulacoes];
+          const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
+          const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
+          
+          if (pIdx !== -1) {
+            updatedParcelas[pIdx] = { 
+              ...updatedParcelas[pIdx], 
+              valor: newVal,
+              dataPagamento: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
+            };
+            updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
+            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+            await saveClientUpdate(updatedClient);
+          }
+        } else if (tipo === 'saida') {
+          const parts = id.split('-');
+          const cId = parts[1];
+          const sIdx = parseInt(parts[2]);
+          
+          const client = clients.find(c => c.id === cId);
+          if (!client) return;
+          
+          const updatedSimulacoes = [...client.simulacoes];
+          updatedSimulacoes[sIdx] = { 
+            ...updatedSimulacoes[sIdx], 
+            valorSolicitado: newVal.toString(),
+            dataCriacao: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
+          };
+          const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+          await saveClientUpdate(updatedClient);
+        }
+        
+        setEditingTransaction(null);
+        alert('Lançamento corrigido com sucesso!');
+      } catch (error) {
+        alert('Erro ao salvar correção.');
+      }
+    };
+
+    const handleDeleteFluxoItem = async (item: any) => {
+      if (!window.confirm('Tem certeza que deseja excluir este lançamento do fluxo de caixa?')) return;
+
+      const { id, tipo } = item;
+
+      try {
+        if (tipo === 'aporte' || tipo === 'retirada') {
+          const adminClient = clients.find(c => c.id === 'admin-transactions');
+          if (!adminClient) return;
+          const updatedRetiradas = adminClient.dados.retiradas.filter((t: any) => t.id !== id);
+          const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
+          await saveClientUpdate(updatedClient);
+        } else if (tipo === 'entrada') {
+          const parts = id.split('-');
+          const cId = parts[1];
+          const sIdx = parseInt(parts[2]);
+          const pNum = parseInt(parts[3]);
+          
+          const client = clients.find(c => c.id === cId);
+          if (!client) return;
+          
+          const updatedSimulacoes = [...client.simulacoes];
+          const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
+          const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
+          
+          if (pIdx !== -1) {
+            // To "delete" an entry from flux, we mark it as not paid
+            updatedParcelas[pIdx] = { 
+              ...updatedParcelas[pIdx], 
+              paga: false,
+              status: 'pendente',
+              dataPagamento: null
+            };
+            updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
+            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+            await saveClientUpdate(updatedClient);
+          }
+        } else if (tipo === 'saida') {
+          const parts = id.split('-');
+          const cId = parts[1];
+          const sIdx = parseInt(parts[2]);
+          
+          const client = clients.find(c => c.id === cId);
+          if (!client) return;
+          
+          const updatedSimulacoes = [...client.simulacoes];
+          // To "delete" a loan release, we might need to delete the whole simulation or mark it as rejected
+          if (window.confirm('Excluir este lançamento de saída irá remover o empréstimo inteiro deste cliente. Continuar?')) {
+            updatedSimulacoes.splice(sIdx, 1);
+            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+            await saveClientUpdate(updatedClient);
+          } else {
+            return;
+          }
+        }
+        alert('Lançamento excluído com sucesso!');
+      } catch (error) {
+        alert('Erro ao excluir lançamento.');
+      }
+    };
+
+    const saveClientUpdate = async (updatedClient: any) => {
+      const response = await fetch(`/api/clients/${updatedClient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
+        body: JSON.stringify(updatedClient)
+      });
+      if (!response.ok) throw new Error('Failed to update');
+      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      if (selectedClient && selectedClient.id === updatedClient.id) {
+        setSelectedClient(updatedClient);
       }
     };
 
@@ -2309,6 +2462,7 @@ export default function App() {
                           <th className="py-3 px-4 font-semibold text-slate-700">Descrição Detalhada</th>
                           <th className="py-3 px-4 font-semibold text-slate-700 text-right">Valor</th>
                           <th className="py-3 px-4 font-semibold text-slate-700 text-right">Saldo</th>
+                          <th className="py-3 px-4 font-semibold text-slate-700 text-center">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2340,6 +2494,24 @@ export default function App() {
                             </td>
                             <td className="py-3 px-4 text-right font-medium text-slate-600 bg-slate-50/50">
                               {formatCurrency(t.saldoApos)}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex justify-center gap-2">
+                                <button 
+                                  onClick={() => handleEditFluxoItem(t)}
+                                  className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                  title="Editar / Corrigir"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteFluxoItem(t)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                                  title="Excluir Lançamento"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -2378,6 +2550,95 @@ export default function App() {
                   Sim, Excluir
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {editingTransaction && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+              <button 
+                onClick={() => setEditingTransaction(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+              <h3 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
+                <Edit2 size={24} className="text-yellow-500" />
+                Corrigir Lançamento
+              </h3>
+              
+              <form onSubmit={handleSaveFluxoEdit} className="space-y-4">
+                {['aporte', 'retirada'].includes(editingTransaction.tipo) && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
+                    <select 
+                      value={editTransactionData.tipo}
+                      onChange={(e) => setEditTransactionData({...editTransactionData, tipo: e.target.value})}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                    >
+                      <option value="retirada">Retirada / Despesa</option>
+                      <option value="aporte">Aporte (Entrada)</option>
+                    </select>
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+                  <input 
+                    type="text" 
+                    value={editTransactionData.descricao}
+                    onChange={(e) => setEditTransactionData({...editTransactionData, descricao: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                    disabled={!['aporte', 'retirada'].includes(editingTransaction.tipo)}
+                    required
+                  />
+                  {!['aporte', 'retirada'].includes(editingTransaction.tipo) && (
+                    <p className="text-[10px] text-slate-400 mt-1">Descrição de lançamentos automáticos não pode ser alterada.</p>
+                  )}
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      value={editTransactionData.valor}
+                      onChange={(e) => setEditTransactionData({...editTransactionData, valor: e.target.value})}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+                    <input 
+                      type="date" 
+                      value={editTransactionData.data}
+                      onChange={(e) => setEditTransactionData({...editTransactionData, data: e.target.value})}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="pt-4 flex gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setEditingTransaction(null)}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    type="submit"
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Save size={20} />
+                    Salvar Alterações
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
