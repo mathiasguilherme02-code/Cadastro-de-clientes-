@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus } from 'lucide-react';
-import html2pdf from 'html2pdf.js';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -648,7 +647,10 @@ export default function App() {
       
       const response = await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: payload
       });
       
@@ -1668,7 +1670,7 @@ export default function App() {
     };
 
     try {
-      await fetch(`/api/clients/${selectedClient.id}`, {
+      const response = await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -1676,6 +1678,10 @@ export default function App() {
         },
         body: JSON.stringify(updatedClient)
       });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao salvar edição no servidor');
+      }
       
       setSelectedClient(updatedClient);
       setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
@@ -1703,7 +1709,7 @@ export default function App() {
     };
     
     try {
-      await fetch(`/api/clients/${selectedClient.id}`, {
+      const response = await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -1711,6 +1717,10 @@ export default function App() {
         },
         body: JSON.stringify(updatedClient)
       });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao excluir empréstimo no servidor');
+      }
       
       setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
       setSelectedClient(updatedClient);
@@ -1735,7 +1745,7 @@ export default function App() {
       };
       
       try {
-        await fetch(`/api/clients/${selectedClient.id}`, {
+        const response = await fetch(`/api/clients/${selectedClient.id}`, {
           method: 'PUT',
           headers: { 
             'Content-Type': 'application/json',
@@ -1743,6 +1753,10 @@ export default function App() {
           },
           body: JSON.stringify(updatedClient)
         });
+        
+        if (!response.ok) {
+          throw new Error('Falha ao atualizar status no servidor');
+        }
         
         setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
         setSelectedClient(updatedClient);
@@ -1752,7 +1766,7 @@ export default function App() {
       }
     };
 
-    const handleGeneratePDF = (simIndex: number) => {
+    const handleGeneratePDF = async (simIndex: number) => {
       const element = document.getElementById(`simulacao-detalhes-${simIndex}`);
       if (!element) return;
       
@@ -1768,10 +1782,18 @@ export default function App() {
       const buttons = element.querySelectorAll('.print\\:hidden');
       buttons.forEach((btn: any) => btn.style.display = 'none');
       
-      html2pdf().set(opt).from(element).save().then(() => {
+      try {
+        // @ts-ignore
+        const html2pdfModule = await import('html2pdf.js');
+        const h2p = (html2pdfModule as any).default || html2pdfModule;
+        await (h2p as any)().set(opt).from(element).save();
+      } catch (error) {
+        console.error("Error generating PDF:", error);
+        alert("Erro ao gerar PDF. Tente usar o botão Imprimir.");
+      } finally {
         // Restore buttons
         buttons.forEach((btn: any) => btn.style.display = '');
-      });
+      }
     };
 
     return (
