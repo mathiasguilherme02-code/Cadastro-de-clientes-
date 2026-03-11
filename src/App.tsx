@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -72,8 +72,16 @@ export default function App() {
   const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
   
   const [adminPassword, setAdminPassword] = useState('');
-  const [adminToken, setAdminToken] = useState('');
+  const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || '');
   const [loginError, setLoginError] = useState('');
+
+  useEffect(() => {
+    if (adminToken) {
+      localStorage.setItem('adminToken', adminToken);
+    } else {
+      localStorage.removeItem('adminToken');
+    }
+  }, [adminToken]);
   const [clientCpf, setClientCpf] = useState('');
   const [clientLoginError, setClientLoginError] = useState('');
   const [clients, setClients] = useState<any[]>([]);
@@ -115,6 +123,18 @@ export default function App() {
         if (settingsRes.ok) {
           const settings = await settingsRes.json();
           setAdminSettings(settings);
+        }
+
+        if (adminToken) {
+          const clientsRes = await fetch('/api/clients', {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          });
+          if (clientsRes.ok) {
+            const clientsData = await clientsRes.json();
+            setClients(clientsData);
+          } else {
+            setAdminToken('');
+          }
         }
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
@@ -1833,8 +1853,30 @@ export default function App() {
                 <UserPlus size={18} />
                 Cadastrar Novo Cliente
               </button>
+              <button 
+                onClick={() => {
+                  setAdminToken('');
+                  setView('welcome');
+                }}
+                className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900 transition-colors shadow-sm font-medium"
+              >
+                <LogOut size={18} />
+                Sair
+              </button>
             </div>
           </div>
+
+          {clients.filter(c => (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).some((s: any) => s.status === 'pendente')).length > 0 && (
+            <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm flex items-start gap-3">
+              <AlertCircle className="text-yellow-600 mt-0.5 flex-shrink-0" size={20} />
+              <div>
+                <h3 className="text-yellow-800 font-bold">Atenção: Empréstimos Pendentes</h3>
+                <p className="text-yellow-700 mt-1">
+                  Existem <strong>{clients.filter(c => (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).some((s: any) => s.status === 'pendente')).length}</strong> cliente(s) com solicitações de empréstimo aguardando aprovação.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="flex gap-4 mb-8 border-b border-slate-200">
             <button
