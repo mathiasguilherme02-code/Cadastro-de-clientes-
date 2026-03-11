@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus } from 'lucide-react';
+import html2pdf from 'html2pdf.js';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -1669,7 +1670,10 @@ export default function App() {
     try {
       await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify(updatedClient)
       });
       
@@ -1701,7 +1705,10 @@ export default function App() {
     try {
       await fetch(`/api/clients/${selectedClient.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${adminToken}`
+        },
         body: JSON.stringify(updatedClient)
       });
       
@@ -1730,7 +1737,10 @@ export default function App() {
       try {
         await fetch(`/api/clients/${selectedClient.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
           body: JSON.stringify(updatedClient)
         });
         
@@ -1740,6 +1750,28 @@ export default function App() {
         console.error("Erro ao atualizar status da simulação:", error);
         alert("Erro ao atualizar status.");
       }
+    };
+
+    const handleGeneratePDF = (simIndex: number) => {
+      const element = document.getElementById(`simulacao-detalhes-${simIndex}`);
+      if (!element) return;
+      
+      const opt = {
+        margin:       10,
+        filename:     `emprestimo-${selectedClient?.nomeCompleto.replace(/\s+/g, '-')}-simulacao-${simIndex + 1}.pdf`,
+        image:        { type: 'jpeg' as const, quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm' as const, format: 'a4', orientation: 'portrait' as const }
+      };
+      
+      // Hide buttons during PDF generation
+      const buttons = element.querySelectorAll('.print\\:hidden');
+      buttons.forEach((btn: any) => btn.style.display = 'none');
+      
+      html2pdf().set(opt).from(element).save().then(() => {
+        // Restore buttons
+        buttons.forEach((btn: any) => btn.style.display = '');
+      });
     };
 
     return (
@@ -1976,7 +2008,7 @@ export default function App() {
                 {selectedClient.simulacoes && selectedClient.simulacoes.length > 0 ? (
                   <div className="md:col-span-2 mt-4 space-y-8">
                     {selectedClient.simulacoes.map((sim: any, simIndex: number) => (
-                      <div key={simIndex} className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                      <div key={simIndex} id={`simulacao-detalhes-${simIndex}`} className="bg-slate-50 rounded-xl p-6 border border-slate-200">
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <span className="bg-yellow-100 text-yellow-600 p-1.5 rounded-lg"><FileText size={20} /></span>
@@ -2114,7 +2146,7 @@ export default function App() {
                                       Imprimir
                                     </button>
                                 <button 
-                                  onClick={() => window.print()}
+                                  onClick={() => handleGeneratePDF(simIndex)}
                                   className="flex items-center gap-2 bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors text-sm"
                                 >
                                   <Download size={16} />
