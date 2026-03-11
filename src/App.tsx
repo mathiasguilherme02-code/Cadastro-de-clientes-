@@ -2496,7 +2496,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.filter(c => c.id !== 'admin-transactions').map(client => (
+                      {clients.filter(c => c.id !== 'admin-transactions').sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => (
                         <tr key={client.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                           <td className="py-4 px-6 font-medium text-slate-800">
                             <div className="flex items-center gap-2">
