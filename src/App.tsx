@@ -85,6 +85,7 @@ export default function App() {
   }, [adminToken]);
   const [clientCpf, setClientCpf] = useState('');
   const [clientLoginError, setClientLoginError] = useState('');
+  const [showReprovadoAlert, setShowReprovadoAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
@@ -216,6 +217,14 @@ export default function App() {
           });
           if (res.ok) {
             const clientData = await res.json();
+            
+            const oldHasReprovado = (selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : [])).some((s: any) => s.status === 'reprovado');
+            const newHasReprovado = (clientData.simulacoes || (clientData.simulacao ? [clientData.simulacao] : [])).some((s: any) => s.status === 'reprovado');
+            
+            if (!oldHasReprovado && newHasReprovado) {
+              setShowReprovadoAlert(true);
+            }
+
             setSelectedClient(clientData);
           }
         } catch (error) {
@@ -726,6 +735,11 @@ export default function App() {
         setSelectedClient(clientData);
         setClientLoginError('');
         setView('client_dashboard');
+        
+        const hasReprovado = (clientData.simulacoes || (clientData.simulacao ? [clientData.simulacao] : [])).some((s: any) => s.status === 'reprovado');
+        if (hasReprovado) {
+          setShowReprovadoAlert(true);
+        }
       } else {
         setClientLoginError('CPF não encontrado em nossa base de dados.');
       }
@@ -737,6 +751,35 @@ export default function App() {
   const renderModals = () => (
     <>
       {/* Modals */}
+      {showReprovadoAlert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+            <button 
+              onClick={() => setShowReprovadoAlert(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">Aviso Importante</h3>
+              <p className="text-slate-600 mb-6">
+                Infelizmente, sua solicitação de empréstimo não foi aprovada neste momento.
+                Entre em contato conosco para mais informações.
+              </p>
+              <button 
+                onClick={() => setShowReprovadoAlert(false)}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showContactModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
@@ -1188,6 +1231,7 @@ export default function App() {
             )))}
           </div>
         </div>
+        {renderModals()}
       </div>
     );
   }
@@ -1341,7 +1385,16 @@ export default function App() {
           taxaAtrasoDia: s.taxaAtrasoDia
         }))
       )
-    ).filter(p => p.dataVencimento === cronogramaDate || (!p.paga && p.dataVencimento < cronogramaDate));
+    ).filter(p => !p.paga)
+     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+
+    const groupedCronograma = cronogramaParcelas.reduce((acc: any, p: any) => {
+      if (!acc[p.dataVencimento]) {
+        acc[p.dataVencimento] = [];
+      }
+      acc[p.dataVencimento].push(p);
+      return acc;
+    }, {} as Record<string, any[]>);
 
     const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
 
@@ -1926,7 +1979,7 @@ export default function App() {
               onClick={() => { setAdminTab('cronograma'); setSelectedClient(null); }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'cronograma' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
-              Cronograma Diário
+              Cronograma de Clientes
             </button>
             <button
               onClick={() => { setAdminTab('fluxo_caixa'); setSelectedClient(null); }}
@@ -2672,102 +2725,110 @@ export default function App() {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                   <Calendar size={24} className="text-yellow-500" />
-                  Cronograma Diário
+                  Cronograma de Clientes
                 </h2>
-                <input 
-                  type="date" 
-                  value={cronogramaDate}
-                  onChange={(e) => setCronogramaDate(e.target.value)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
-                />
               </div>
 
-              {cronogramaParcelas.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200">
-                        <th className="py-4 px-6 font-semibold text-slate-700">Cliente</th>
-                        <th className="py-4 px-6 font-semibold text-slate-700">Telefone</th>
-                        <th className="py-4 px-6 font-semibold text-slate-700">Parcela</th>
-                        <th className="py-4 px-6 font-semibold text-slate-700">Valor</th>
-                        <th className="py-4 px-6 font-semibold text-slate-700">Status</th>
-                        <th className="py-4 px-6 font-semibold text-slate-700 text-right">Ação</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cronogramaParcelas.map((p, idx) => (
-                        <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="py-4 px-6 font-medium text-slate-800">{p.clientName}</td>
-                          <td className="py-4 px-6 text-slate-600">{p.clientPhone}</td>
-                          <td className="py-4 px-6 text-slate-600">{p.numero}</td>
-                          <td className="py-4 px-6 text-slate-600">{formatCurrency(p.valor)}</td>
-                          <td className="py-4 px-6">
-                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${
-                              p.status === 'pago' ? 'bg-green-100 text-green-800' :
-                              p.status === 'atrasado' ? 'bg-red-100 text-red-800' :
-                              'bg-yellow-100 text-yellow-800'
-                            }`}>
-                              {p.status === 'pago' ? 'Pago' : p.status === 'atrasado' ? 'Atrasado' : 'Pendente'}
-                            </span>
-                          </td>
-                          <td className="py-4 px-6 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {!p.paga && (
-                                <a 
-                                  href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-                                    (() => {
-                                      const hoje = new Date();
-                                      hoje.setHours(0,0,0,0);
-                                      const vencimento = parseLocalDate(p.dataVencimento);
-                                      vencimento.setHours(0,0,0,0);
-                                      const isVencida = !p.paga && vencimento < hoje;
-                                      const isVencendoHoje = !p.paga && vencimento.getTime() === hoje.getTime();
-                                      
-                                      if (isVencendoHoje) {
-                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
-                                      } else if (isVencida) {
-                                        const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
-                                        const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                        const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
-                                        const valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`;
-                                      }
-                                      return '';
-                                    })()
-                                  )}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
-                                  title="Notificar via WhatsApp"
-                                >
-                                  <Phone size={18} />
-                                </a>
-                              )}
-                              <button 
-                                onClick={() => {
-                                  const client = clients.find(c => c.id === p.clientId);
-                                  if (client) {
-                                    setSelectedClient(client);
-                                    setAdminTab('clientes');
-                                  }
-                                }}
-                                className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
-                              >
-                                Ver Cliente
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {Object.keys(groupedCronograma).length > 0 ? (
+                <div className="space-y-8">
+                  {Object.entries(groupedCronograma).map(([date, parcelas]) => {
+                    const hoje = new Date();
+                    hoje.setHours(0,0,0,0);
+                    const vencimento = parseLocalDate(date);
+                    vencimento.setHours(0,0,0,0);
+                    const isVencida = vencimento < hoje;
+                    const isVencendoHoje = vencimento.getTime() === hoje.getTime();
+                    
+                    let dateLabel = formatDate(date);
+                    let dateColor = 'text-slate-700 bg-slate-100';
+                    
+                    if (isVencendoHoje) {
+                      dateLabel += ' (Vence Hoje)';
+                      dateColor = 'text-yellow-800 bg-yellow-100 border-yellow-200';
+                    } else if (isVencida) {
+                      dateLabel += ' (Vencida)';
+                      dateColor = 'text-red-800 bg-red-100 border-red-200';
+                    } else {
+                      dateLabel += ' (A Vencer)';
+                      dateColor = 'text-blue-800 bg-blue-100 border-blue-200';
+                    }
+
+                    return (
+                      <div key={date} className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div className={`px-6 py-3 border-b font-semibold flex items-center gap-2 ${dateColor}`}>
+                          <Calendar size={18} />
+                          {dateLabel}
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200">
+                                <th className="py-3 px-6 font-semibold text-slate-700">Cliente</th>
+                                <th className="py-3 px-6 font-semibold text-slate-700">Telefone</th>
+                                <th className="py-3 px-6 font-semibold text-slate-700">Parcela</th>
+                                <th className="py-3 px-6 font-semibold text-slate-700">Valor</th>
+                                <th className="py-3 px-6 font-semibold text-slate-700 text-right">Ação</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {parcelas.map((p, idx) => (
+                                <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                  <td className="py-3 px-6 font-medium text-slate-800">{p.clientName}</td>
+                                  <td className="py-3 px-6 text-slate-600">{p.clientPhone}</td>
+                                  <td className="py-3 px-6 text-slate-600">{p.numero}</td>
+                                  <td className="py-3 px-6 text-slate-600">{formatCurrency(p.valor)}</td>
+                                  <td className="py-3 px-6 text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <a 
+                                        href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+                                          (() => {
+                                            if (isVencendoHoje) {
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                            } else if (isVencida) {
+                                              const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
+                                              const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                              const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
+                                              const valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                            }
+                                            return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
+                                          })()
+                                        )}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50 transition-colors"
+                                        title="Notificar via WhatsApp"
+                                      >
+                                        <Phone size={18} />
+                                      </a>
+                                      <button 
+                                        onClick={() => {
+                                          const client = clients.find(c => c.id === p.clientId);
+                                          if (client) {
+                                            setSelectedClient(client);
+                                            setAdminTab('clientes');
+                                          }
+                                        }}
+                                        className="text-indigo-600 hover:text-indigo-900 font-medium text-sm"
+                                      >
+                                        Ver Cliente
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-12 text-center flex flex-col items-center justify-center">
                   <Calendar size={64} className="text-slate-300 mb-4" />
-                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhuma parcela para esta data</h3>
-                  <p className="text-slate-500">Não há vencimentos programados para o dia selecionado.</p>
+                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhuma parcela pendente</h3>
+                  <p className="text-slate-500">Não há vencimentos pendentes no momento.</p>
                 </div>
               )}
             </div>
