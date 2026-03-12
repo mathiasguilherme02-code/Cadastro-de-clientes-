@@ -86,6 +86,7 @@ export default function App() {
   const [clientCpf, setClientCpf] = useState('');
   const [clientLoginError, setClientLoginError] = useState('');
   const [showReprovadoAlert, setShowReprovadoAlert] = useState(false);
+  const [showActiveLoanAlert, setShowActiveLoanAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
@@ -683,6 +684,20 @@ export default function App() {
   const handleAddSimulation = async () => {
     if (!selectedClient) return;
     
+    if (!adminToken) {
+      const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+      const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
+      const hasBlockingLoan = activeLoans.some((s: any) => {
+        const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
+        return unpaidCount > 2;
+      });
+
+      if (hasBlockingLoan) {
+        setShowActiveLoanAlert(true);
+        return;
+      }
+    }
+
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
     const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
@@ -771,6 +786,34 @@ export default function App() {
               </p>
               <button 
                 onClick={() => setShowReprovadoAlert(false)}
+                className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showActiveLoanAlert && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+            <button 
+              onClick={() => setShowActiveLoanAlert(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-2xl font-bold text-slate-800 mb-2">Aviso</h3>
+              <p className="text-slate-600 mb-6">
+                Caro cliente, você possui empréstimo ATIVO, com mais de duas parcelas a serem vencidas
+              </p>
+              <button 
+                onClick={() => setShowActiveLoanAlert(false)}
                 className="w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-3 px-4 rounded-xl transition-colors"
               >
                 Entendi
@@ -1079,6 +1122,17 @@ export default function App() {
             <div className="flex gap-3">
               <button 
                 onClick={() => {
+                  const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
+                  const hasBlockingLoan = activeLoans.some((s: any) => {
+                    const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
+                    return unpaidCount > 2;
+                  });
+
+                  if (hasBlockingLoan) {
+                    setShowActiveLoanAlert(true);
+                    return;
+                  }
+
                   setSimulacao({
                     valorSolicitado: '',
                     prazo: 'mensal',
