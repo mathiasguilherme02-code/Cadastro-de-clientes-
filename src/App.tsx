@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -2789,33 +2789,60 @@ export default function App() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
-                  <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-green-600 mb-1">Entradas Efetivadas</p>
-                    <p className="text-2xl font-bold text-green-700">{formatCurrency(monthEntradas)}</p>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+                  <div className="bg-green-50 border border-green-100 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ArrowUpRight size={18} className="text-green-600" />
+                      <p className="text-xs font-semibold text-green-600 uppercase tracking-wider">Entradas Efetivadas</p>
+                    </div>
+                    <p className="text-xl font-bold text-green-700">{formatCurrency(monthEntradas)}</p>
                   </div>
-                  <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-yellow-600 mb-1">Entradas Pendentes</p>
-                    <p className="text-2xl font-bold text-yellow-700">{formatCurrency(monthPendentes)}</p>
+                  
+                  <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock size={18} className="text-yellow-600" />
+                      <p className="text-xs font-semibold text-yellow-600 uppercase tracking-wider">Entradas Pendentes</p>
+                    </div>
+                    <p className="text-xl font-bold text-yellow-700">{formatCurrency(monthPendentes)}</p>
                   </div>
-                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-rose-600 mb-1">Inadimplência (Mês)</p>
-                    <p className="text-2xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
+
+                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <PiggyBank size={18} className="text-emerald-600" />
+                      <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Aportes (Capital)</p>
+                    </div>
+                    <p className="text-xl font-bold text-emerald-700">{formatCurrency(monthAportes)}</p>
                   </div>
-                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-emerald-600 mb-1">Aportes (Capital)</p>
-                    <p className="text-2xl font-bold text-emerald-700">{formatCurrency(monthAportes)}</p>
+
+                  <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ArrowDownRight size={18} className="text-red-600" />
+                      <p className="text-xs font-semibold text-red-600 uppercase tracking-wider">Saídas (Empréstimos)</p>
+                    </div>
+                    <p className="text-xl font-bold text-red-700">{formatCurrency(monthSaidas)}</p>
                   </div>
-                  <div className="bg-red-50 border border-red-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-red-600 mb-1">Saídas (Empréstimos)</p>
-                    <p className="text-2xl font-bold text-red-700">{formatCurrency(monthSaidas)}</p>
+
+                  <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCard size={18} className="text-orange-600" />
+                      <p className="text-xs font-semibold text-orange-600 uppercase tracking-wider">Retiradas / Despesas</p>
+                    </div>
+                    <p className="text-xl font-bold text-orange-700">{formatCurrency(monthRetiradas)}</p>
                   </div>
-                  <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-orange-600 mb-1">Retiradas / Despesas</p>
-                    <p className="text-2xl font-bold text-orange-700">{formatCurrency(monthRetiradas)}</p>
+
+                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col justify-between">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertTriangle size={18} className="text-rose-600" />
+                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Inadimplência (Mês)</p>
+                    </div>
+                    <p className="text-xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
-                  <div className={`border p-4 rounded-xl ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
-                    <p className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
+
+                  <div className={`md:col-span-3 lg:col-span-2 border p-4 rounded-xl flex flex-col justify-between ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Wallet size={18} className={saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'} />
+                      <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
+                    </div>
                     <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
                   </div>
                 </div>
