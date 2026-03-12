@@ -88,8 +88,9 @@ export default function App() {
   const [clients, setClients] = useState<any[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [isEditingClientData, setIsEditingClientData] = useState(false);
   const [editingParcela, setEditingParcela] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
-  const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0});
+  const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0, dataPagamento: ''});
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
@@ -601,7 +602,11 @@ export default function App() {
       });
     };
 
-    const newClient = {
+    const newClient = isEditingClientData ? {
+      ...selectedClient,
+      ...formData,
+      arquivos: fileUrls.length > 0 ? [...(selectedClient.arquivos || []), ...fileUrls] : selectedClient.arquivos
+    } : {
       ...formData,
       id: generateUUID(),
       dataCadastro: getLocalISODateTime(),
@@ -613,9 +618,16 @@ export default function App() {
       const payloadString = JSON.stringify(newClient);
       const payload = payloadString;
       
-      const response = await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const url = isEditingClientData ? `/api/clients/${selectedClient.id}` : '/api/clients';
+      const method = isEditingClientData ? 'PUT' : 'POST';
+      const headers: any = { 'Content-Type': 'application/json' };
+      if (isEditingClientData && adminToken) {
+        headers['Authorization'] = `Bearer ${adminToken}`;
+      }
+
+      const response = await fetch(url, {
+        method,
+        headers,
         body: payload
       });
       
@@ -633,8 +645,16 @@ export default function App() {
         return;
       }
       
-      setClients(prev => [newClient, ...prev]);
-      setShowSuccessModal(true);
+      if (isEditingClientData) {
+        setClients(prev => prev.map(c => c.id === selectedClient.id ? newClient : c));
+        setSelectedClient(newClient);
+        setIsEditingClientData(false);
+        setView('admin');
+        alert('Dados do cliente atualizados com sucesso!');
+      } else {
+        setClients(prev => [newClient, ...prev]);
+        setShowSuccessModal(true);
+      }
       
       // Reset form
       setFormData(initialFormData);
@@ -2006,6 +2026,17 @@ export default function App() {
                     Nova Simulação
                   </button>
                   <button 
+                    onClick={() => {
+                      setFormData(selectedClient);
+                      setIsEditingClientData(true);
+                      setView('form');
+                    }}
+                    className="bg-blue-500/20 hover:bg-blue-500 text-blue-200 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Edit2 size={18} />
+                    Editar Dados
+                  </button>
+                  <button 
                     onClick={() => setClientToDelete(selectedClient)}
                     className="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                   >
@@ -2280,7 +2311,11 @@ export default function App() {
                                       <button
                                         onClick={() => {
                                           setEditingParcela({ simIndex, parcelaIndex: i });
-                                          setEditParcelaData({ dataVencimento: p.dataVencimento, valor: p.valor });
+                                          setEditParcelaData({ 
+                                            dataVencimento: p.dataVencimento, 
+                                            valor: p.valor,
+                                            dataPagamento: p.dataPagamento ? p.dataPagamento.split('T')[0] : ''
+                                          });
                                         }}
                                         className="text-slate-400 hover:text-yellow-600 transition-colors ml-2"
                                         title="Editar Parcela"
@@ -2371,6 +2406,17 @@ export default function App() {
                                         className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-yellow-500 outline-none"
                                       />
                                     </div>
+                                    {p.paga && (
+                                      <div className="col-span-2">
+                                        <label className="block text-xs text-slate-500 mb-1">Data de Pagamento</label>
+                                        <input
+                                          type="date"
+                                          value={editParcelaData.dataPagamento}
+                                          onChange={(e) => setEditParcelaData({ ...editParcelaData, dataPagamento: e.target.value })}
+                                          className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-yellow-500 outline-none"
+                                        />
+                                      </div>
+                                    )}
                                     <div className="col-span-2 flex justify-end gap-2 mt-2">
                                       <button
                                         onClick={() => setEditingParcela(null)}
@@ -2387,7 +2433,8 @@ export default function App() {
                                               novasParcelas[i] = { 
                                                 ...novasParcelas[i], 
                                                 dataVencimento: editParcelaData.dataVencimento, 
-                                                valor: editParcelaData.valor 
+                                                valor: editParcelaData.valor,
+                                                ...(p.paga && editParcelaData.dataPagamento ? { dataPagamento: editParcelaData.dataPagamento + 'T12:00:00.000Z' } : {})
                                               };
                                               updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                               
@@ -3220,36 +3267,40 @@ export default function App() {
         </button>
       </div>
       <div className="absolute top-4 right-4 flex gap-3">
-        <button 
-          onClick={() => setView('welcome')}
-          className="flex items-center gap-2 bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm text-sm font-semibold"
-        >
-          <ArrowLeft size={16} />
-          Voltar à página inicial
-        </button>
-        <button 
-          onClick={() => setShowHowItWorksModal(true)}
-          className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
-        >
-          <Info size={16} />
-          Como funciona
-        </button>
-        <a 
-          href="https://wa.me/5531972323040"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
-        >
-          <Phone size={16} />
-          Fale conosco
-        </a>
-        <button 
-          onClick={() => setView('admin_login')}
-          className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
-        >
-          <LayoutDashboard size={16} />
-          Acesso Admin
-        </button>
+        {!isEditingClientData && (
+          <>
+            <button 
+              onClick={() => setView('welcome')}
+              className="flex items-center gap-2 bg-slate-200 text-slate-800 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm text-sm font-semibold"
+            >
+              <ArrowLeft size={16} />
+              Voltar à página inicial
+            </button>
+            <button 
+              onClick={() => setShowHowItWorksModal(true)}
+              className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
+            >
+              <Info size={16} />
+              Como funciona
+            </button>
+            <a 
+              href="https://wa.me/5531972323040"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
+            >
+              <Phone size={16} />
+              Fale conosco
+            </a>
+            <button 
+              onClick={() => setView('admin_login')}
+              className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
+            >
+              <LayoutDashboard size={16} />
+              Acesso Admin
+            </button>
+          </>
+        )}
       </div>
       <div className="max-w-[95%] mx-auto bg-white rounded-2xl shadow-xl overflow-hidden mt-8">
         <div className="bg-white px-8 py-10 border-b-4 border-yellow-500 flex flex-col items-center text-center">
@@ -3476,7 +3527,7 @@ export default function App() {
             </div>
             
             <div className="bg-yellow-50 border-2 border-dashed border-yellow-300 rounded-xl p-8 text-center hover:bg-yellow-100 transition-colors cursor-pointer relative">
-              <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required />
+              <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required={!isEditingClientData} />
               <div className="flex flex-col items-center justify-center space-y-3">
                 <UploadCloud className="text-yellow-500" size={48} />
                 <div className="text-slate-700 font-medium">Clique para fazer upload ou arraste os arquivos (máx. 10)</div>
@@ -3493,19 +3544,31 @@ export default function App() {
             </div>
           </section>
 
-          <div className="pt-6 border-t">
+          <div className="pt-6 border-t flex gap-4">
+            {isEditingClientData && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsEditingClientData(false);
+                  setView('admin');
+                }}
+                className="w-1/3 font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg bg-slate-200 hover:bg-slate-300 text-slate-700"
+              >
+                Cancelar
+              </button>
+            )}
             <button 
               type="submit" 
               disabled={isSubmitting}
-              className={`w-full font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg ${isSubmitting ? 'bg-slate-400 cursor-not-allowed text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`}
+              className={`${isEditingClientData ? 'w-2/3' : 'w-full'} font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg ${isSubmitting ? 'bg-slate-400 cursor-not-allowed text-white' : 'bg-yellow-500 hover:bg-yellow-600 text-white'}`}
             >
               {isSubmitting ? (
                 <>
                   <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Enviando...
+                  Salvando...
                 </>
               ) : (
-                'Concluir Cadastro'
+                isEditingClientData ? 'Salvar Alterações' : 'Concluir Cadastro'
               )}
             </button>
           </div>
