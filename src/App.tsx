@@ -16,6 +16,7 @@ const initialFormData = {
   cidade: '',
   estado: '',
   parenteNome: '',
+  parenteGrau: '',
   parenteTelefone: '',
   parenteCep: '',
   parenteEndereco: '',
@@ -111,7 +112,8 @@ export default function App() {
     prazo: 'mensal',
     quantidade: '1',
     taxaJuros: '15',
-    taxaAtrasoDia: '1'
+    taxaAtrasoDia: '1',
+    dataInicial: getLocalISODate()
   });
 
   useEffect(() => {
@@ -1319,7 +1321,7 @@ export default function App() {
           taxaAtrasoDia: s.taxaAtrasoDia
         }))
       )
-    ).filter(p => p.dataVencimento === cronogramaDate);
+    ).filter(p => p.dataVencimento === cronogramaDate || (!p.paga && p.dataVencimento < cronogramaDate));
 
     const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
 
@@ -1376,6 +1378,20 @@ export default function App() {
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoMonth))
+      )
+    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
+
+    const monthPendentes = clients.flatMap(c => 
+      (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .flatMap((s: any) => 
+        (s.parcelas || []).filter((p: any) => {
+          const hoje = new Date();
+          hoje.setHours(0,0,0,0);
+          const vencimento = parseLocalDate(p.dataVencimento);
+          vencimento.setHours(0,0,0,0);
+          return !p.paga && vencimento >= hoje && p.dataVencimento.startsWith(fluxoMonth);
+        })
       )
     ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
 
@@ -1629,7 +1645,8 @@ export default function App() {
       prazo: sim.prazo || 'mensal',
       quantidade: sim.quantidade || '1',
       taxaJuros: sim.taxaJuros || adminSettings.taxaJuros,
-      taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia
+      taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
+      dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate()
     });
   };
 
@@ -1653,7 +1670,7 @@ export default function App() {
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
-    let dataAtual = new Date();
+    let dataAtual = editSimData.dataInicial ? parseLocalDate(editSimData.dataInicial) : new Date();
 
     for (let i = 1; i <= qtd; i++) {
       let dataVencimento = new Date(dataAtual);
@@ -2020,6 +2037,7 @@ export default function App() {
                   <h3 className="text-lg font-semibold text-slate-800 mb-4 mt-8 border-b pb-2">Parente Próximo</h3>
                   <div className="space-y-3 text-sm">
                     <p><span className="font-medium text-slate-500">Nome:</span> {selectedClient.parenteNome}</p>
+                    <p><span className="font-medium text-slate-500">Grau de Parentesco:</span> {selectedClient.parenteGrau || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Telefone:</span> {selectedClient.parenteTelefone}</p>
                     <p><span className="font-medium text-slate-500">Endereço:</span> {selectedClient.parenteEndereco}, {selectedClient.parenteNumero}</p>
                   </div>
@@ -2166,6 +2184,15 @@ export default function App() {
                                   className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                 />
                               </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Data Inicial</label>
+                                <input
+                                  type="date"
+                                  value={editSimData.dataInicial}
+                                  onChange={(e) => setEditSimData({...editSimData, dataInicial: e.target.value})}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                />
+                              </div>
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                               <button
@@ -2190,10 +2217,14 @@ export default function App() {
                                 <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.valorSolicitado)}</p>
                               </div>
                               <div>
+                                <p className="text-sm text-slate-500">Total a Pagar</p>
+                                <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.parcelas.reduce((acc: number, p: any) => acc + parseFloat(p.valor || 0), 0))}</p>
+                              </div>
+                              <div>
                                 <p className="text-sm text-slate-500">Prazo</p>
                                 <p className="text-lg font-semibold text-slate-800 capitalize">{sim.prazo}</p>
                               </div>
-                              <div className="col-span-2 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                              <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                                 <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
                                 <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}%</p>
                                 <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + Taxa de Juros / pelas parcelas</p>
@@ -2279,6 +2310,9 @@ export default function App() {
                                               status: isNowPaid ? 'pago' : 'pendente',
                                               dataPagamento: isNowPaid ? getLocalISODateTime() : null
                                             };
+                                            if (isNowPaid && isVencida) {
+                                              novasParcelas[i].valor = valorAtualizado;
+                                            }
                                             updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                             
                                             const updatedClient = {
@@ -2405,6 +2439,11 @@ export default function App() {
                                     <div>
                                       <span className="text-slate-500">Valor:</span> {formatCurrency(p.valor)}
                                     </div>
+                                    {p.paga && p.dataPagamento && (
+                                      <div className="col-span-2 text-emerald-600 font-medium">
+                                        <span className="text-slate-500">Pago em:</span> {formatDate(p.dataPagamento.split('T')[0])}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 
@@ -2440,7 +2479,7 @@ export default function App() {
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix, ou via motoboy até 17 horas.`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -2453,6 +2492,40 @@ export default function App() {
                               </div>
                             );
                           })}
+                        </div>
+                        
+                        <div className="mt-6 pt-6 border-t border-slate-200">
+                          <h4 className="font-semibold text-slate-700 mb-2">Anotações do Empréstimo</h4>
+                          <textarea
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none resize-y min-h-[100px]"
+                            placeholder="Adicione anotações sobre este empréstimo..."
+                            value={sim.anotacoes || ''}
+                            onChange={(e) => {
+                              const updatedClients = clients.map(c => {
+                                if (c.id === selectedClient.id) {
+                                  const updatedSimulacoes = [...c.simulacoes];
+                                  updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: e.target.value };
+                                  return { ...c, simulacoes: updatedSimulacoes };
+                                }
+                                return c;
+                              });
+                              setClients(updatedClients);
+                            }}
+                            onBlur={() => {
+                              const clientToUpdate = clients.find(c => c.id === selectedClient.id);
+                              if (clientToUpdate) {
+                                fetch(`/api/clients/${clientToUpdate.id}`, {
+                                  method: 'PUT',
+                                  headers: { 
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${adminToken}`
+                                  },
+                                  body: JSON.stringify(clientToUpdate)
+                                }).catch(err => console.error("Erro ao salvar anotações:", err));
+                              }
+                            }}
+                          />
+                          <p className="text-xs text-slate-500 mt-1">As anotações são salvas automaticamente ao sair do campo.</p>
                         </div>
                         </>
                         )}
@@ -2605,7 +2678,7 @@ export default function App() {
                                       const isVencendoHoje = !p.paga && vencimento.getTime() === hoje.getTime();
                                       
                                       if (isVencendoHoje) {
-                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix, ou via motoboy até 17 horas.`;
+                                        return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                       } else if (isVencida) {
                                         const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
                                         const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -2669,10 +2742,18 @@ export default function App() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-8">
                   <div className="bg-green-50 border border-green-100 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-green-600 mb-1">Entradas (Pagamentos)</p>
+                    <p className="text-sm font-medium text-green-600 mb-1">Entradas Efetivadas</p>
                     <p className="text-2xl font-bold text-green-700">{formatCurrency(monthEntradas)}</p>
+                  </div>
+                  <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-yellow-600 mb-1">Entradas Pendentes</p>
+                    <p className="text-2xl font-bold text-yellow-700">{formatCurrency(monthPendentes)}</p>
+                  </div>
+                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
+                    <p className="text-sm font-medium text-rose-600 mb-1">Inadimplência (Mês)</p>
+                    <p className="text-2xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
                   <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-emerald-600 mb-1">Aportes (Capital)</p>
@@ -2685,10 +2766,6 @@ export default function App() {
                   <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl">
                     <p className="text-sm font-medium text-orange-600 mb-1">Retiradas / Despesas</p>
                     <p className="text-2xl font-bold text-orange-700">{formatCurrency(monthRetiradas)}</p>
-                  </div>
-                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl">
-                    <p className="text-sm font-medium text-rose-600 mb-1">Inadimplência (Mês)</p>
-                    <p className="text-2xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
                   <div className={`border p-4 rounded-xl ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                     <p className={`text-sm font-medium mb-1 ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
@@ -3292,12 +3369,17 @@ export default function App() {
               <h2 className="text-xl font-semibold text-slate-800">Contato de Parente Próximo</h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome do parente próximo</label>
                 <input type="text" name="parenteNome" value={formData.parenteNome} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
               </div>
               
+              <div className="md:col-span-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Grau de parentesco</label>
+                <input type="text" name="parenteGrau" value={formData.parenteGrau} onChange={handleInputChange} placeholder="Ex: Pai, Mãe, Irmão, Cônjuge" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+              </div>
+
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Telefone do parente</label>
                 <input type="tel" name="parenteTelefone" value={formData.parenteTelefone} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
