@@ -179,6 +179,7 @@ export default function App() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showArchivedLoans, setShowArchivedLoans] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCepSearchModal, setShowCepSearchModal] = useState(false);
   const [cepSearchData, setCepSearchData] = useState({ uf: '', cidade: '', logradouro: '' });
@@ -615,7 +616,7 @@ export default function App() {
     const newClient = isEditingClientData ? {
       ...selectedClient,
       ...formData,
-      arquivos: fileUrls.length > 0 ? [...(selectedClient.arquivos || []), ...fileUrls] : selectedClient.arquivos
+      arquivos: fileUrls.length > 0 ? [...(formData.arquivos || []), ...fileUrls] : formData.arquivos
     } : {
       ...formData,
       id: generateUUID(),
@@ -1120,6 +1121,14 @@ export default function App() {
               <p className="text-slate-500">Acompanhe o histórico e situação dos seus empréstimos</p>
             </div>
             <div className="flex gap-3">
+              {clientSimulacoes.some((s: any) => s.arquivado) && (
+                <button
+                  onClick={() => setShowArchivedLoans(!showArchivedLoans)}
+                  className="flex items-center gap-2 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm font-medium"
+                >
+                  {showArchivedLoans ? 'Ocultar Arquivados' : 'Ver Arquivados'}
+                </button>
+              )}
               <button 
                 onClick={() => {
                   const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
@@ -1168,15 +1177,18 @@ export default function App() {
                 </p>
               </div>
             ) : (
-              clientSimulacoes.map((sim: any, simIndex: number) => (
-              <div key={simIndex} className="bg-white rounded-2xl shadow-xl overflow-hidden">
-                <div className="bg-yellow-500 px-8 py-6 text-white flex justify-between items-center">
+              clientSimulacoes.map((sim: any, simIndex: number) => {
+                if (sim.arquivado && !showArchivedLoans) return null;
+                return (
+              <div key={simIndex} className={`bg-white rounded-2xl shadow-xl overflow-hidden ${sim.arquivado ? 'opacity-75' : ''}`}>
+                <div className={`${sim.arquivado ? 'bg-slate-500' : 'bg-yellow-500'} px-8 py-6 text-white flex justify-between items-center`}>
                   <div>
                     <h2 className="text-2xl font-bold flex items-center gap-3">
                       Empréstimo {clientSimulacoes.length > 1 ? `#${clientSimulacoes.length - simIndex}` : ''}
                       {sim.status === 'pendente' && <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full uppercase tracking-wider">Em Análise</span>}
                       {sim.status === 'reprovado' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Reprovado</span>}
                       {(sim.status === 'aprovado' || !sim.status) && <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>}
+                      {sim.arquivado && <span className="text-xs bg-slate-700 text-white px-2 py-1 rounded-full uppercase tracking-wider">Arquivado</span>}
                     </h2>
                     <p className="text-yellow-100 mt-1">Valor Solicitado: {formatCurrency(sim.valorSolicitado)}</p>
                   </div>
@@ -1227,8 +1239,10 @@ export default function App() {
                       if (isVencida) {
                         const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
                         diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
-                        valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                        if (!p.jurosCongelados) {
+                          const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
+                          valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                        }
                       }
 
                       return (
@@ -1282,7 +1296,8 @@ export default function App() {
                   )}
                 </div>
               </div>
-            )))}
+              );
+            }))}
           </div>
         </div>
         {renderModals()}
@@ -2227,8 +2242,21 @@ export default function App() {
                 {/* Detalhes do Empréstimo */}
                 {selectedClient.simulacoes && selectedClient.simulacoes.length > 0 ? (
                   <div className="md:col-span-2 mt-4 space-y-8">
-                    {selectedClient.simulacoes.map((sim: any, simIndex: number) => (
-                      <div key={simIndex} id={`simulacao-detalhes-${simIndex}`} className="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-lg font-bold text-slate-800">Histórico de Empréstimos</h3>
+                      {selectedClient.simulacoes.some((s: any) => s.arquivado) && (
+                        <button
+                          onClick={() => setShowArchivedLoans(!showArchivedLoans)}
+                          className="text-sm font-medium text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition-colors"
+                        >
+                          {showArchivedLoans ? 'Ocultar Arquivados' : 'Ver Arquivados'}
+                        </button>
+                      )}
+                    </div>
+                    {selectedClient.simulacoes.map((sim: any, simIndex: number) => {
+                      if (sim.arquivado && !showArchivedLoans) return null;
+                      return (
+                      <div key={simIndex} id={`simulacao-detalhes-${simIndex}`} className={`bg-slate-50 rounded-xl p-6 border ${sim.arquivado ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}>
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <span className="bg-yellow-100 text-yellow-600 p-1.5 rounded-lg"><FileText size={20} /></span>
@@ -2257,6 +2285,42 @@ export default function App() {
                             {sim.status === 'reprovado' && (
                               <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
                             )}
+                            {sim.arquivado && (
+                              <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-sm font-medium ml-2">Arquivado</span>
+                            )}
+                            <button
+                              onClick={() => {
+                                const updatedClients = clients.map(c => {
+                                  if (c.id === selectedClient.id) {
+                                    const updatedSimulacoes = [...c.simulacoes];
+                                    updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], arquivado: !updatedSimulacoes[simIndex].arquivado };
+                                    const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+                                    setSelectedClient(updatedClient);
+                                    
+                                    fetch(`/api/clients/${updatedClient.id}`, {
+                                      method: 'PUT',
+                                      headers: { 
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${adminToken}`
+                                      },
+                                      body: JSON.stringify(updatedClient)
+                                    }).catch(err => console.error("Erro ao arquivar:", err));
+                                    
+                                    return updatedClient;
+                                  }
+                                  return c;
+                                });
+                                setClients(updatedClients);
+                              }}
+                              className={`ml-2 p-2 rounded-lg transition-colors ${sim.arquivado ? 'text-amber-500 hover:text-amber-700 hover:bg-amber-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
+                              title={sim.arquivado ? "Desarquivar Empréstimo" : "Arquivar Empréstimo"}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                                <rect x="1" y="3" width="22" height="5"></rect>
+                                <line x1="10" y1="12" x2="14" y2="12"></line>
+                              </svg>
+                            </button>
                             <button
                               onClick={() => startEditingSimulacao(simIndex, sim)}
                               className="ml-2 text-indigo-500 hover:text-indigo-700 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
@@ -2403,8 +2467,10 @@ export default function App() {
                             if (isVencida) {
                               const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
                               diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                              const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
-                              valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                              if (!p.jurosCongelados) {
+                                const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
+                                valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                              }
                             }
 
                             const isEditing = editingParcela?.simIndex === simIndex && editingParcela?.parcelaIndex === i;
@@ -2491,6 +2557,59 @@ export default function App() {
                                       {p.paga ? "Paga" : "Pendente"}
                                     </span>
                                   </label>
+                                  
+                                  {!p.paga && isVencida && (
+                                    <label className="flex items-center gap-2 cursor-pointer mt-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={p.jurosCongelados || false}
+                                        onChange={(e) => {
+                                          const isFrozen = e.target.checked;
+                                          const updatedClients = clients.map(c => {
+                                            if (c.id === selectedClient.id) {
+                                              const updatedSimulacoes = [...(c.simulacoes || (c.simulacao ? [c.simulacao] : []))];
+                                              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                              novasParcelas[i] = { 
+                                                ...novasParcelas[i], 
+                                                jurosCongelados: isFrozen
+                                              };
+                                              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                              
+                                              const updatedClient = {
+                                                ...c,
+                                                simulacoes: updatedSimulacoes
+                                              };
+                                              
+                                              // Save to API
+                                              fetch(`/api/clients/${c.id}`, {
+                                                method: 'PUT',
+                                                headers: { 
+                                                  'Content-Type': 'application/json',
+                                                  'Authorization': `Bearer ${adminToken}`
+                                                },
+                                                body: JSON.stringify(updatedClient)
+                                              })
+                                              .then(res => {
+                                                if (!res.ok) {
+                                                  alert('Erro ao atualizar status da parcela no banco de dados.');
+                                                }
+                                              })
+                                              .catch(err => console.error("Erro ao atualizar cliente:", err));
+
+                                              setSelectedClient(updatedClient);
+                                              return updatedClient;
+                                            }
+                                            return c;
+                                          });
+                                          setClients(updatedClients);
+                                        }}
+                                        className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
+                                      />
+                                      <span className="text-blue-600 text-sm font-medium">
+                                        Juros congelados
+                                      </span>
+                                    </label>
+                                  )}
                                 </div>
                                 {isEditing ? (
                                   <div className="grid grid-cols-2 gap-2 text-sm mt-2 bg-slate-50 p-2 rounded border border-slate-200">
@@ -2619,7 +2738,7 @@ export default function App() {
                                 {isVencida && !isEditing && (
                                   <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -2659,7 +2778,9 @@ export default function App() {
                                 if (c.id === selectedClient.id) {
                                   const updatedSimulacoes = [...c.simulacoes];
                                   updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: e.target.value };
-                                  return { ...c, simulacoes: updatedSimulacoes };
+                                  const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+                                  setSelectedClient(updatedClient);
+                                  return updatedClient;
                                 }
                                 return c;
                               });
@@ -2684,7 +2805,8 @@ export default function App() {
                         </>
                         )}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : selectedClient.simulacao && selectedClient.simulacao.valorSolicitado ? (
                   <div className="md:col-span-2 mt-4">
@@ -2785,7 +2907,7 @@ export default function App() {
 
               {Object.keys(groupedCronograma).length > 0 ? (
                 <div className="space-y-8">
-                  {Object.entries(groupedCronograma).map(([date, parcelas]) => {
+                  {Object.entries(groupedCronograma).map(([date, parcelas]: [string, any[]]) => {
                     const hoje = new Date();
                     hoje.setHours(0,0,0,0);
                     const vencimento = parseLocalDate(date);
@@ -2842,8 +2964,11 @@ export default function App() {
                                               const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
                                               const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                                               const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
-                                              const valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}. Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                              let valorAtualizado = p.valor;
+                                              if (!p.jurosCongelados) {
+                                                valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                                              }
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
                                             }
                                             return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                           })()
@@ -3668,6 +3793,42 @@ export default function App() {
               <h2 className="text-xl font-semibold text-slate-800">Anexo de Documentos</h2>
             </div>
             
+            {isEditingClientData && formData.arquivos && formData.arquivos.length > 0 && (
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-slate-700 mb-3">Arquivos Anexados Anteriormente</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {formData.arquivos.map((file: any, index: number) => (
+                    <div key={index} className="border border-slate-200 rounded-xl p-4 flex flex-col items-center relative group">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (window.confirm('Tem certeza que deseja remover este anexo?')) {
+                            const newArquivos = [...formData.arquivos];
+                            newArquivos.splice(index, 1);
+                            setFormData({ ...formData, arquivos: newArquivos });
+                          }
+                        }}
+                        className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
+                        title="Remover anexo"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      {file.type.startsWith('image/') ? (
+                        <img src={file.url} alt={file.name} className="max-w-full h-auto max-h-32 object-contain rounded-lg mb-3" />
+                      ) : (
+                        <div className="w-full h-32 bg-slate-100 flex items-center justify-center rounded-lg mb-3">
+                          <FileText size={48} className="text-slate-400" />
+                        </div>
+                      )}
+                      <p className="text-sm text-slate-600 text-center truncate w-full" title={file.name}>{file.name}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="bg-yellow-50 border-2 border-dashed border-yellow-300 rounded-xl p-8 text-center hover:bg-yellow-100 transition-colors cursor-pointer relative">
               <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required={!isEditingClientData} />
               <div className="flex flex-col items-center justify-center space-y-3">
