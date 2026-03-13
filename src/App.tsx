@@ -1237,12 +1237,18 @@ export default function App() {
                       let valorAtualizado = p.valor;
                       
                       if (isVencida) {
-                        const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
-                        diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                        if (!p.jurosCongelados) {
-                          const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
-                          valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                        let dataBase = hoje;
+                        if (p.jurosCongelados && p.dataCongelamento) {
+                          const dataCongelamento = parseLocalDate(p.dataCongelamento);
+                          dataCongelamento.setHours(0,0,0,0);
+                          if (dataCongelamento < hoje) {
+                            dataBase = dataCongelamento;
+                          }
                         }
+                        const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+                        diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
+                        valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                       }
 
                       return (
@@ -2465,12 +2471,18 @@ export default function App() {
                             let valorAtualizado = p.valor;
                             
                             if (isVencida) {
-                              const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
-                              diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                              if (!p.jurosCongelados) {
-                                const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
-                                valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                              let dataBase = hoje;
+                              if (p.jurosCongelados && p.dataCongelamento) {
+                                const dataCongelamento = parseLocalDate(p.dataCongelamento);
+                                dataCongelamento.setHours(0,0,0,0);
+                                if (dataCongelamento < hoje) {
+                                  dataBase = dataCongelamento;
+                                }
                               }
+                              const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+                              diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                              const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
+                              valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                             }
 
                             const isEditing = editingParcela?.simIndex === simIndex && editingParcela?.parcelaIndex === i;
@@ -2571,7 +2583,8 @@ export default function App() {
                                               const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
                                               novasParcelas[i] = { 
                                                 ...novasParcelas[i], 
-                                                jurosCongelados: isFrozen
+                                                jurosCongelados: isFrozen,
+                                                dataCongelamento: isFrozen ? new Date().toISOString().split('T')[0] : undefined
                                               };
                                               updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
                                               
@@ -2609,6 +2622,49 @@ export default function App() {
                                         Juros congelados
                                       </span>
                                     </label>
+                                  )}
+                                  
+                                  {!p.paga && isVencida && p.jurosCongelados && (
+                                    <div className="mt-2 text-sm bg-blue-50 p-2 rounded border border-blue-100">
+                                      <label className="block text-blue-800 font-medium mb-1">Data de Congelamento:</label>
+                                      <input
+                                        type="date"
+                                        value={p.dataCongelamento || ''}
+                                        onChange={(e) => {
+                                          const newDate = e.target.value;
+                                          const updatedClients = clients.map(c => {
+                                            if (c.id === selectedClient.id) {
+                                              const updatedSimulacoes = [...(c.simulacoes || (c.simulacao ? [c.simulacao] : []))];
+                                              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                              novasParcelas[i] = { 
+                                                ...novasParcelas[i], 
+                                                dataCongelamento: newDate
+                                              };
+                                              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                              
+                                              const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+                                              
+                                              // Save to API
+                                              fetch(`/api/clients/${c.id}`, {
+                                                method: 'PUT',
+                                                headers: { 
+                                                  'Content-Type': 'application/json',
+                                                  'Authorization': `Bearer ${adminToken}`
+                                                },
+                                                body: JSON.stringify(updatedClient)
+                                              }).catch(err => console.error("Erro ao atualizar data de congelamento:", err));
+
+                                              setSelectedClient(updatedClient);
+                                              return updatedClient;
+                                            }
+                                            return c;
+                                          });
+                                          setClients(updatedClients);
+                                        }}
+                                        className="w-full px-2 py-1 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700"
+                                      />
+                                      <p className="text-xs text-blue-600 mt-1 leading-tight">O valor será congelado com os juros calculados até esta data.</p>
+                                    </div>
                                   )}
                                 </div>
                                 {isEditing ? (
@@ -2961,13 +3017,18 @@ export default function App() {
                                             if (isVencendoHoje) {
                                               return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                             } else if (isVencida) {
-                                              const diffTime = Math.abs(hoje.getTime() - vencimento.getTime());
+                                              let dataBase = hoje;
+                                              if (p.jurosCongelados && p.dataCongelamento) {
+                                                const dataCongelamento = parseLocalDate(p.dataCongelamento);
+                                                dataCongelamento.setHours(0,0,0,0);
+                                                if (dataCongelamento < hoje) {
+                                                  dataBase = dataCongelamento;
+                                                }
+                                              }
+                                              const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
                                               const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                                               const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
-                                              let valorAtualizado = p.valor;
-                                              if (!p.jurosCongelados) {
-                                                valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-                                              }
+                                              let valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                                               return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
                                             }
                                             return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
