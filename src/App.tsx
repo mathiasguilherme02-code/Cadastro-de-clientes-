@@ -187,6 +187,7 @@ export default function App() {
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [cepSearchError, setCepSearchError] = useState('');
   const [cepTarget, setCepTarget] = useState<'client' | 'parente'>('client');
+  const [printingSimIndex, setPrintingSimIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const handleUpdateClients = async () => {
@@ -2181,7 +2182,7 @@ export default function App() {
               </div>
               
               <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
+                <div className={printingSimIndex !== null ? 'print:hidden' : ''}>
                   <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2">Dados Pessoais</h3>
                   <div className="space-y-3 text-sm">
                     <p><span className="font-medium text-slate-500">Nome da Mãe:</span> {selectedClient.nomeMae}</p>
@@ -2213,7 +2214,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div>
+                <div className={printingSimIndex !== null ? 'print:hidden' : ''}>
                   <h3 className="text-lg font-semibold text-slate-800 mb-4 border-b pb-2 print:hidden">Documentos Anexados</h3>
                   {selectedClient.arquivos && selectedClient.arquivos.length > 0 ? (
                     <div className="grid grid-cols-1 gap-4 print:hidden">
@@ -2248,7 +2249,7 @@ export default function App() {
                 {/* Detalhes do Empréstimo */}
                 {selectedClient.simulacoes && selectedClient.simulacoes.length > 0 ? (
                   <div className="md:col-span-2 mt-4 space-y-8">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className={`flex justify-between items-center mb-2 ${printingSimIndex !== null ? 'print:hidden' : ''}`}>
                       <h3 className="text-lg font-bold text-slate-800">Histórico de Empréstimos</h3>
                       {selectedClient.simulacoes.some((s: any) => s.arquivado) && (
                         <button
@@ -2261,8 +2262,12 @@ export default function App() {
                     </div>
                     {selectedClient.simulacoes.map((sim: any, simIndex: number) => {
                       if (sim.arquivado && !showArchivedLoans) return null;
+                      
+                      const isPrintingThis = printingSimIndex === simIndex;
+                      const hideOnPrintClass = printingSimIndex !== null && !isPrintingThis ? 'print:hidden' : '';
+
                       return (
-                      <div key={simIndex} id={`simulacao-detalhes-${simIndex}`} className={`bg-slate-50 rounded-xl p-6 border ${sim.arquivado ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'}`}>
+                      <div key={simIndex} id={`simulacao-detalhes-${simIndex}`} className={`bg-slate-50 rounded-xl p-6 border ${sim.arquivado ? 'border-amber-200 bg-amber-50/30' : 'border-slate-200'} ${hideOnPrintClass}`}>
                         <div className="flex justify-between items-center mb-4 border-b pb-2">
                           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                             <span className="bg-yellow-100 text-yellow-600 p-1.5 rounded-lg"><FileText size={20} /></span>
@@ -2443,7 +2448,13 @@ export default function App() {
                               <h4 className="font-semibold text-slate-700">Controle de Parcelas</h4>
                                 <div className="flex gap-2 print:hidden">
                                     <button 
-                                      onClick={() => window.print()}
+                                      onClick={() => {
+                                        setPrintingSimIndex(simIndex);
+                                        setTimeout(() => {
+                                          window.print();
+                                          setPrintingSimIndex(null);
+                                        }, 100);
+                                      }}
                                       className="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg hover:bg-slate-500 transition-colors text-sm"
                                     >
                                       Imprimir
