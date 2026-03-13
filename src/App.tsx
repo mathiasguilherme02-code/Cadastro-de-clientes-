@@ -45,6 +45,10 @@ const getLocalISOMonth = (date = new Date()) => {
   return `${year}-${month}`;
 };
 
+const getLocalISOYear = (date = new Date()) => {
+  return String(date.getFullYear());
+};
+
 const getLocalISODateTime = (date = new Date()) => {
   const d = getLocalISODate(date);
   const t = date.toTimeString().split(' ')[0];
@@ -69,7 +73,7 @@ export default function App() {
   });
   const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa'>('clientes');
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
-  const [fluxoMonth, setFluxoMonth] = useState(getLocalISOMonth()); // YYYY-MM
+  const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
   
   const [adminPassword, setAdminPassword] = useState('');
@@ -1534,7 +1538,7 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
         .flatMap((s: any) => 
-        (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoMonth))
+        (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoYear))
       )
     ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
 
@@ -1547,7 +1551,7 @@ export default function App() {
           hoje.setHours(0,0,0,0);
           const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0,0,0,0);
-          return !p.paga && vencimento >= hoje && p.dataVencimento.startsWith(fluxoMonth);
+          return !p.paga && vencimento >= hoje && p.dataVencimento.startsWith(fluxoYear);
         })
       )
     ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
@@ -1561,7 +1565,7 @@ export default function App() {
           hoje.setHours(0,0,0,0);
           const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0,0,0,0);
-          return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoMonth);
+          return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoYear);
         })
       )
     ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
@@ -1570,16 +1574,16 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
         // If sim has dataCriacao, use it. Otherwise use client's dataCadastro
         const date = s.dataCriacao || c.dataCadastro;
-        return date && date.startsWith(fluxoMonth) && s.status !== 'pendente' && s.status !== 'reprovado';
+        return date && date.startsWith(fluxoYear) && s.status !== 'pendente' && s.status !== 'reprovado';
       })
     ).reduce((acc, s) => acc + parseFloat(s.valorSolicitado || 0), 0);
 
     const monthRetiradas = adminTransactions
-      .filter((t: any) => t.data.startsWith(fluxoMonth) && t.tipo !== 'aporte')
+      .filter((t: any) => t.data.startsWith(fluxoYear) && t.tipo !== 'aporte')
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const monthAportes = adminTransactions
-      .filter((t: any) => t.data.startsWith(fluxoMonth) && t.tipo === 'aporte')
+      .filter((t: any) => t.data.startsWith(fluxoYear) && t.tipo === 'aporte')
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
@@ -3101,12 +3105,15 @@ export default function App() {
                     <TrendingUp size={24} className="text-yellow-500" />
                     Fluxo de Caixa
                   </h2>
-                  <input 
-                    type="month" 
-                    value={fluxoMonth}
-                    onChange={(e) => setFluxoMonth(e.target.value)}
-                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none"
-                  />
+                  <select 
+                    value={fluxoYear}
+                    onChange={(e) => setFluxoYear(e.target.value)}
+                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                  >
+                    {Array.from({ length: 11 }, (_, i) => new Date().getFullYear() - 5 + i).map(year => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
@@ -3153,7 +3160,7 @@ export default function App() {
                   <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col justify-between">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertTriangle size={18} className="text-rose-600" />
-                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Inadimplência (Mês)</p>
+                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Inadimplência (Ano)</p>
                     </div>
                     <p className="text-xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
@@ -3161,7 +3168,7 @@ export default function App() {
                   <div className={`md:col-span-3 lg:col-span-2 border p-4 rounded-xl flex flex-col justify-between ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <Wallet size={18} className={saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'} />
-                      <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Mês</p>
+                      <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Ano</p>
                     </div>
                     <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
                   </div>
@@ -3225,13 +3232,13 @@ export default function App() {
               </div>
 
               <div className="bg-white rounded-2xl shadow-xl p-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoMonth})</h3>
-                {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
+                <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoYear})</h3>
+                {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoYear)).length > 0 ? (
                   <div className="space-y-6">
                     {Object.entries(
                       [...transactionsWithBalance]
-                        .filter((t: any) => t.data.startsWith(fluxoMonth))
-                        .sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                        .filter((t: any) => t.data.startsWith(fluxoYear))
+                        .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())
                         .reduce((acc: any, t: any) => {
                           if (!acc[t.data]) acc[t.data] = [];
                           acc[t.data].push(t);
@@ -3306,7 +3313,7 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-slate-500 text-center py-4">Nenhuma movimentação registrada neste mês.</p>
+                  <p className="text-slate-500 text-center py-4">Nenhuma movimentação registrada neste ano.</p>
                 )}
               </div>
             </div>
