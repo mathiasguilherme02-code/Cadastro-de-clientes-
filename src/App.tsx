@@ -381,6 +381,14 @@ export default function App() {
     return dateString;
   };
 
+  const formatDateWithDay = (dateString: string) => {
+    if (!dateString) return '';
+    const date = parseLocalDate(dateString);
+    const dayName = date.toLocaleDateString('pt-BR', { weekday: 'long' });
+    const formattedDate = formatDate(dateString);
+    return `${formattedDate} - ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}`;
+  };
+
   const calcularSimulacao = () => {
     const valor = parseFloat(simulacao.valorSolicitado);
     if (!valor || isNaN(valor)) return;
@@ -2805,7 +2813,7 @@ export default function App() {
                                 {isVencida && !isEditing && (
                                   <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -2819,7 +2827,7 @@ export default function App() {
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -3026,7 +3034,7 @@ export default function App() {
                                         href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
                                           (() => {
                                             if (isVencendoHoje) {
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                             } else if (isVencida) {
                                               let dataBase = hoje;
                                               if (p.jurosCongelados && p.dataCongelamento) {
@@ -3040,9 +3048,9 @@ export default function App() {
                                               const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                                               const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
                                               let valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
                                             }
-                                            return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo (31 97232-3040) lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
+                                            return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                           })()
                                         )}`}
                                         target="_blank"
@@ -3219,70 +3227,83 @@ export default function App() {
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoMonth})</h3>
                 {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoMonth)).length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="py-3 px-4 font-semibold text-slate-700">Data</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700">Tipo</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700">Descrição Detalhada</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Valor</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Saldo</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-center">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[...transactionsWithBalance]
-                          .filter((t: any) => t.data.startsWith(fluxoMonth))
-                          .sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())
-                          .map((t: any, idx: number) => (
-                          <tr key={t.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                            <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{t.data.split('-').reverse().join('/')}</td>
-                            <td className="py-3 px-4">
-                              <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${
-                                t.tipo === 'aporte' ? 'bg-emerald-100 text-emerald-700' : 
-                                t.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 
-                                t.tipo === 'saida' ? 'bg-red-100 text-red-700' : 
-                                'bg-orange-100 text-orange-700'
-                              }`}>
-                                {t.tipo === 'aporte' ? 'Aporte' : 
-                                 t.tipo === 'entrada' ? 'Entrada' : 
-                                 t.tipo === 'saida' ? 'Saída' : 
-                                 'Retirada'}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="text-slate-800 font-semibold">{t.descricao}</div>
-                              <div className="text-xs text-slate-500">{t.detalhes}</div>
-                            </td>
-                            <td className={`py-3 px-4 text-right font-bold ${['aporte', 'entrada'].includes(t.tipo) ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {['aporte', 'entrada'].includes(t.tipo) ? '+' : '-'} {formatCurrency(t.valor)}
-                            </td>
-                            <td className="py-3 px-4 text-right font-medium text-slate-600 bg-slate-50/50">
-                              {formatCurrency(t.saldoApos)}
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex justify-center gap-2">
-                                <button 
-                                  onClick={() => handleEditFluxoItem(t)}
-                                  className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
-                                  title="Editar / Corrigir"
-                                >
-                                  <Edit2 size={16} />
-                                </button>
-                                <button 
-                                  onClick={() => handleDeleteFluxoItem(t)}
-                                  className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                                  title="Excluir Lançamento"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-6">
+                    {Object.entries(
+                      [...transactionsWithBalance]
+                        .filter((t: any) => t.data.startsWith(fluxoMonth))
+                        .sort((a: any, b: any) => new Date(b.data).getTime() - new Date(a.data).getTime())
+                        .reduce((acc: any, t: any) => {
+                          if (!acc[t.data]) acc[t.data] = [];
+                          acc[t.data].push(t);
+                          return acc;
+                        }, {})
+                    ).map(([date, transactions]: [string, any]) => (
+                      <div key={date} className="border border-slate-200 rounded-xl overflow-hidden">
+                        <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-700">
+                          {formatDateWithDay(date)}
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-xs">
+                                <th className="py-2 px-4 font-semibold text-slate-600">Tipo</th>
+                                <th className="py-2 px-4 font-semibold text-slate-600">Descrição Detalhada</th>
+                                <th className="py-2 px-4 font-semibold text-slate-600 text-right">Valor</th>
+                                <th className="py-2 px-4 font-semibold text-slate-600 text-right">Saldo</th>
+                                <th className="py-2 px-4 font-semibold text-slate-600 text-center">Ações</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {transactions.map((t: any, idx: number) => (
+                                <tr key={t.id || idx} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                                  <td className="py-3 px-4">
+                                    <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider font-bold ${
+                                      t.tipo === 'aporte' ? 'bg-emerald-100 text-emerald-700' : 
+                                      t.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 
+                                      t.tipo === 'saida' ? 'bg-red-100 text-red-700' : 
+                                      'bg-orange-100 text-orange-700'
+                                    }`}>
+                                      {t.tipo === 'aporte' ? 'Aporte' : 
+                                       t.tipo === 'entrada' ? 'Entrada' : 
+                                       t.tipo === 'saida' ? 'Saída' : 
+                                       'Retirada'}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="text-slate-800 font-semibold">{t.descricao}</div>
+                                    <div className="text-xs text-slate-500">{t.detalhes}</div>
+                                  </td>
+                                  <td className={`py-3 px-4 text-right font-bold ${['aporte', 'entrada'].includes(t.tipo) ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {['aporte', 'entrada'].includes(t.tipo) ? '+' : '-'} {formatCurrency(t.valor)}
+                                  </td>
+                                  <td className="py-3 px-4 text-right font-medium text-slate-600 bg-slate-50/50">
+                                    {formatCurrency(t.saldoApos)}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    <div className="flex justify-center gap-2">
+                                      <button 
+                                        onClick={() => handleEditFluxoItem(t)}
+                                        className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors"
+                                        title="Editar / Corrigir"
+                                      >
+                                        <Edit2 size={16} />
+                                      </button>
+                                      <button 
+                                        onClick={() => handleDeleteFluxoItem(t)}
+                                        className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
+                                        title="Excluir Lançamento"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <p className="text-slate-500 text-center py-4">Nenhuma movimentação registrada neste mês.</p>
