@@ -378,19 +378,15 @@ export default function App() {
 
   const formatDate = (dateString: string) => {
     if (!dateString) return '';
-    const parts = dateString.split('-');
+    const dateOnly = dateString.split('T')[0];
+    const parts = dateOnly.split('-');
     if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      const date = parseLocalDate(dateOnly);
+      const dayName = date.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const capitalizedDayName = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+      return `(${parts[2]}/${parts[1]}/${parts[0]}) - ${capitalizedDayName}`;
     }
     return dateString;
-  };
-
-  const formatDateWithDay = (dateString: string) => {
-    if (!dateString) return '';
-    const date = parseLocalDate(dateString);
-    const dayName = date.toLocaleDateString('pt-BR', { weekday: 'long' });
-    const formattedDate = formatDate(dateString);
-    return `${formattedDate} - ${dayName.charAt(0).toUpperCase() + dayName.slice(1)}`;
   };
 
   const calcularSimulacao = () => {
@@ -2845,7 +2841,7 @@ export default function App() {
                                 {isVencida && !isEditing && (
                                   <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${formatDate(p.dataVencimento)}. ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -2859,7 +2855,7 @@ export default function App() {
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -3066,7 +3062,7 @@ export default function App() {
                                         href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
                                           (() => {
                                             if (isVencendoHoje) {
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje (${formatDate(p.dataVencimento)}). O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                             } else if (isVencida) {
                                               let dataBase = hoje;
                                               if (p.jurosCongelados && p.dataCongelamento) {
@@ -3080,7 +3076,7 @@ export default function App() {
                                               const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                                               const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
                                               let valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA (${formatDate(p.dataVencimento)}). ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${formatDate(p.dataVencimento)}. ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
                                             }
                                             return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                           })()
@@ -3276,7 +3272,7 @@ export default function App() {
                     ).map(([date, transactions]: [string, any]) => (
                       <div key={date} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-6 last:mb-0">
                         <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-700">
-                          {formatDateWithDay(date)}
+                          {formatDate(date)}
                         </div>
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
