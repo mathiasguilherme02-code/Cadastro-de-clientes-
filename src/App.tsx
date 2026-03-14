@@ -1215,8 +1215,7 @@ export default function App() {
                       </div>
                       <h3 className="text-xl font-bold text-slate-800 mb-2">Em Análise</h3>
                       <p className="text-slate-500 max-w-md mx-auto">
-                        Sua solicitação de empréstimo está sendo analisada pela nossa equipe. 
-                        Você será notificado assim que houver uma atualização.
+                        Sua solicitação está sendo analisado e revisado pela nossa equipe, podendo ter alterações. Você poderá estar verificando se houve atualização.
                       </p>
                     </div>
                   ) : sim.status === 'reprovado' ? (
