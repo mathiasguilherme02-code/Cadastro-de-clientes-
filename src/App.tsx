@@ -101,7 +101,7 @@ export default function App() {
   const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
   const [adminSettings, setAdminSettings] = useState({
-    taxaJuros: '40',
+    taxaJuros: '1',
     taxaAtrasoDia: '8'
   });
 
@@ -109,7 +109,7 @@ export default function App() {
     valorSolicitado: '',
     prazo: 'mensal',
     quantidade: '1',
-    taxaJuros: '15',
+    taxaJuros: '1',
     taxaAtrasoDia: '1',
     parcelas: [] as any[]
   });
@@ -118,7 +118,7 @@ export default function App() {
     valorSolicitado: '',
     prazo: 'mensal',
     quantidade: '1',
-    taxaJuros: '15',
+    taxaJuros: '1',
     taxaAtrasoDia: '1',
     dataInicial: getLocalISODate()
   });
@@ -398,9 +398,16 @@ export default function App() {
     if (!valor || isNaN(valor)) return;
 
     const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
-    const taxa = parseFloat(adminSettings.taxaJuros) || 15;
+    const taxa = parseFloat(adminSettings.taxaJuros) || 1;
     
-    const valorTotal = valor + (valor * (taxa / 100));
+    let diasTotais = 30;
+    if (simulacao.prazo === 'dia') diasTotais = qtd;
+    else if (simulacao.prazo === 'semanal') diasTotais = qtd * 7;
+    else if (simulacao.prazo === 'quinzenal') diasTotais = qtd * 15;
+    else if (simulacao.prazo === 'mensal') diasTotais = qtd * 30;
+    else if (simulacao.prazo === 'única') diasTotais = 30;
+
+    const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
@@ -1839,9 +1846,16 @@ export default function App() {
     }
 
     const qtd = editSimData.prazo === 'única' ? 1 : parseInt(editSimData.quantidade) || 1;
-    const taxa = parseFloat(editSimData.taxaJuros) || 15;
+    const taxa = parseFloat(editSimData.taxaJuros) || 1;
     
-    const valorTotal = valor + (valor * (taxa / 100));
+    let diasTotais = 30;
+    if (editSimData.prazo === 'dia') diasTotais = qtd;
+    else if (editSimData.prazo === 'semanal') diasTotais = qtd * 7;
+    else if (editSimData.prazo === 'quinzenal') diasTotais = qtd * 15;
+    else if (editSimData.prazo === 'mensal') diasTotais = qtd * 30;
+    else if (editSimData.prazo === 'única') diasTotais = 30;
+
+    const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
@@ -2112,7 +2126,7 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros Padrão (%)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Dia (%)</label>
                   <input 
                     type="number" 
                     value={adminSettings.taxaJuros} 
@@ -2415,7 +2429,7 @@ export default function App() {
                                 </div>
                               )}
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros (%)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Dia (%)</label>
                                 <input
                                   type="number"
                                   value={editSimData.taxaJuros}
@@ -2465,8 +2479,8 @@ export default function App() {
                               </div>
                               <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
                                 <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
-                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}%</p>
-                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + Taxa de Juros / pelas parcelas</p>
+                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao dia</p>
+                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * Dias Totais)</p>
                               </div>
                             </div>
 
