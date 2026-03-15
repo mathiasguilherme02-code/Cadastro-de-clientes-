@@ -591,17 +591,19 @@ export default function App() {
       for (let i = 0; i < formData.documentos.length; i++) {
         totalSize += formData.documentos[i].size;
       }
-      if (totalSize > 4 * 1024 * 1024) {
-        alert("O tamanho total dos arquivos excede o limite de 4MB. Por favor, envie arquivos menores ou em menor quantidade.");
+      if (totalSize > 20 * 1024 * 1024) {
+        alert("O tamanho total dos arquivos excede o limite de 20MB. Por favor, envie arquivos menores ou em menor quantidade.");
+        setIsSubmitting(false);
         return;
       }
 
       for (let i = 0; i < formData.documentos.length; i++) {
         const file = formData.documentos[i];
         
-        // Limit file size to 2MB
-        if (file.size > 2 * 1024 * 1024) {
-          alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 2MB.`);
+        // Limit file size to 10MB
+        if (file.size > 10 * 1024 * 1024) {
+          alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 10MB.`);
+          setIsSubmitting(false);
           return; // Stop submission
         }
         

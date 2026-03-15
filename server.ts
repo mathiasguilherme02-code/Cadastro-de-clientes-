@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy } from "firebase/firestore";
+import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -20,9 +21,11 @@ const firebaseConfig = {
 };
 
 let db: any;
+let storage: any;
 try {
   const firebaseApp = initializeApp(firebaseConfig);
   db = getFirestore(firebaseApp);
+  storage = getStorage(firebaseApp);
 } catch (e) {
   console.error("Firebase initialization error:", e);
 }
@@ -164,6 +167,28 @@ app.get("/api/clients", requireAdmin, async (req, res) => {
   }
 });
 
+async function processClientFiles(client: any) {
+  if (client.arquivos && Array.isArray(client.arquivos)) {
+    for (let i = 0; i < client.arquivos.length; i++) {
+      const arquivo = client.arquivos[i];
+      if (arquivo.url && arquivo.url.startsWith('data:')) {
+        try {
+          const fileRef = ref(storage, `clients/${client.id}/${Date.now()}_${arquivo.name}`);
+          await uploadString(fileRef, arquivo.url, 'data_url');
+          const downloadURL = await getDownloadURL(fileRef);
+          arquivo.url = downloadURL;
+        } catch (error) {
+          console.error("Error uploading file to storage:", error);
+          // Fallback: keep the base64 string.
+          // Note: If the base64 string is too large, Firestore will reject the document.
+          // We don't throw here to allow small files to still be saved in Firestore if Storage is unconfigured.
+        }
+      }
+    }
+  }
+  return client;
+}
+
 // Add New Client (Public, for registration)
 app.post("/api/clients", async (req, res) => {
   try {
@@ -189,12 +214,15 @@ app.post("/api/clients", async (req, res) => {
       }
     }
     
+    // Process files (upload to Firebase Storage)
+    const processedClient = await processClientFiles(client);
+    
     await setDoc(doc(db, "clients", client.id), {
       id: client.id,
       nomeCompleto: client.nomeCompleto,
       cpf: formattedCpf,
       dataCadastro: pgDate,
-      dados: client
+      dados: processedClient
     });
       
     broadcastUpdate('UPDATE_CLIENTS');
@@ -230,7 +258,10 @@ app.put("/api/clients/:id", async (req, res) => {
       }
     }
     
-    await updateDoc(doc(db, "clients", id), { dados: client });
+    // Process files (upload to Firebase Storage)
+    const processedClient = await processClientFiles(client);
+    
+    await updateDoc(doc(db, "clients", id), { dados: processedClient });
       
     broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
