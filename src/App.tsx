@@ -29,6 +29,7 @@ const initialFormData = {
   redesSociais: '',
   atividadeFinanceira: '',
   observacoes: '',
+  statusManual: 'automatico',
   documentos: null as FileList | null
 };
 
@@ -387,6 +388,53 @@ export default function App() {
       return `(${parts[2]}/${parts[1]}/${parts[0]}) - ${capitalizedDayName}`;
     }
     return dateString;
+  };
+
+  const getClientStatus = (client: any) => {
+    if (client.statusManual && client.statusManual !== 'automatico') {
+      return client.statusManual;
+    }
+
+    const clientSims = client.simulacoes?.filter((s: any) => s.status === 'aprovado' && !s.arquivado) || [];
+    let worstStatus = 'sem_pendencias';
+
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+
+    for (const sim of clientSims) {
+      for (const p of sim.parcelas) {
+        if (!p.paga) {
+          const vencimento = parseLocalDate(p.dataVencimento);
+          vencimento.setHours(0,0,0,0);
+          
+          const diffTime = hoje.getTime() - vencimento.getTime();
+          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+          if (diasAtraso > 30) {
+            return 'muito_atrasado';
+          } else if (diasAtraso > 0) {
+            if (worstStatus !== 'muito_atrasado') worstStatus = 'atrasado';
+          } else if (diasAtraso === 0) {
+            if (worstStatus === 'sem_pendencias' || worstStatus === 'em_dia') worstStatus = 'vence_hoje';
+          } else {
+            if (worstStatus === 'sem_pendencias') worstStatus = 'em_dia';
+          }
+        }
+      }
+    }
+
+    return worstStatus;
+  };
+
+  const getStatusDisplay = (status: string) => {
+    switch(status) {
+      case 'muito_atrasado': return { color: 'bg-red-900', text: 'text-white', label: '+30 Dias Atraso' };
+      case 'atrasado': return { color: 'bg-red-500', text: 'text-white', label: 'Atrasado' };
+      case 'vence_hoje': return { color: 'bg-yellow-400', text: 'text-yellow-900', label: 'Vence Hoje' };
+      case 'em_dia': return { color: 'bg-emerald-500', text: 'text-white', label: 'Em Dia' };
+      case 'sem_pendencias': return { color: 'bg-slate-200', text: 'text-slate-600', label: 'Sem Pendências' };
+      default: return { color: 'bg-slate-200', text: 'text-slate-600', label: 'Sem Pendências' };
+    }
   };
 
   const calcularSimulacao = () => {
@@ -1133,7 +1181,18 @@ export default function App() {
         <div className="max-w-[95%] mx-auto">
           <div className="flex justify-between items-center mb-8">
             <div>
-              <h1 className="text-3xl font-bold text-slate-800">Olá, {selectedClient.nomeCompleto.split(' ')[0]}!</h1>
+              <div className="flex items-center gap-3 mb-1">
+                <h1 className="text-3xl font-bold text-slate-800">Olá, {selectedClient.nomeCompleto.split(' ')[0]}!</h1>
+                {(() => {
+                  const status = getClientStatus(selectedClient);
+                  const statusDisplay = getStatusDisplay(status);
+                  return (
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusDisplay.color} ${statusDisplay.text}`}>
+                      {statusDisplay.label}
+                    </span>
+                  );
+                })()}
+              </div>
               <p className="text-slate-500">Acompanhe o histórico e situação dos seus empréstimos</p>
             </div>
             <div className="flex gap-3">
@@ -2169,7 +2228,18 @@ export default function App() {
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden" id="pdf-content">
               <div className="bg-slate-800 px-8 py-6 text-white flex justify-between items-center print:bg-slate-800 print:text-white">
                 <div>
-                  <h2 className="text-2xl font-bold">{selectedClient.nomeCompleto}</h2>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h2 className="text-2xl font-bold">{selectedClient.nomeCompleto}</h2>
+                    {(() => {
+                      const status = getClientStatus(selectedClient);
+                      const statusDisplay = getStatusDisplay(status);
+                      return (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.color} ${statusDisplay.text}`}>
+                          {statusDisplay.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
                   <p className="text-slate-300">CPF: {selectedClient.cpf} | Cadastrado em: {selectedClient.dataCadastro}</p>
                 </div>
                 <div className="flex gap-3 print:hidden">
@@ -2939,6 +3009,7 @@ export default function App() {
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-200">
+                        <th className="py-4 px-6 font-semibold text-slate-700">Status</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">Nome do Cliente</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">CPF</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">Telefone</th>
@@ -2948,8 +3019,16 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.filter(c => c.id !== 'admin-transactions').sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => (
+                      {clients.filter(c => c.id !== 'admin-transactions').sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => {
+                        const status = getClientStatus(client);
+                        const statusDisplay = getStatusDisplay(status);
+                        return (
                         <tr key={client.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusDisplay.color} ${statusDisplay.text}`}>
+                              {statusDisplay.label}
+                            </span>
+                          </td>
                           <td className="py-4 px-6 font-medium text-slate-800">
                             <div className="flex items-center gap-2">
                               {client.nomeCompleto}
@@ -2985,7 +3064,8 @@ export default function App() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -3912,6 +3992,27 @@ export default function App() {
                   placeholder="Informações relevantes sobre o cliente, referências, bens oferecidos como garantia, etc."
                 />
               </div>
+
+              {isEditingClientData && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status do Cliente (Sinalização)</label>
+                  <select
+                    name="statusManual"
+                    value={formData.statusManual || 'automatico'}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                  >
+                    <option value="automatico">Automático (Baseado nas parcelas)</option>
+                    <option value="em_dia">Em Dia (Verde)</option>
+                    <option value="vence_hoje">Vence Hoje (Amarelo)</option>
+                    <option value="atrasado">Atrasado (Vermelho)</option>
+                    <option value="muito_atrasado">Atrasado +30 Dias (Vermelho Escuro)</option>
+                  </select>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Selecione "Automático" para que o sistema defina a cor com base no vencimento das parcelas.
+                  </p>
+                </div>
+              )}
             </div>
           </section>
 
