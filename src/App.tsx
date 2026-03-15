@@ -28,6 +28,13 @@ const initialFormData = {
   quemIndicou: '',
   redesSociais: '',
   atividadeFinanceira: '',
+  atividadeFinanceiraCep: '',
+  atividadeFinanceiraEndereco: '',
+  atividadeFinanceiraNumero: '',
+  atividadeFinanceiraComplemento: '',
+  atividadeFinanceiraBairro: '',
+  atividadeFinanceiraCidade: '',
+  atividadeFinanceiraEstado: '',
   observacoes: '',
   statusManual: 'automatico',
   documentos: null as FileList | null
@@ -179,6 +186,7 @@ export default function App() {
 
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingParenteCep, setLoadingParenteCep] = useState(false);
+  const [loadingAtividadeCep, setLoadingAtividadeCep] = useState(false);
   const [cpfError, setCpfError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showContactModal, setShowContactModal] = useState(false);
@@ -191,7 +199,7 @@ export default function App() {
   const [cepSearchResults, setCepSearchResults] = useState<any[]>([]);
   const [isSearchingCep, setIsSearchingCep] = useState(false);
   const [cepSearchError, setCepSearchError] = useState('');
-  const [cepTarget, setCepTarget] = useState<'client' | 'parente'>('client');
+  const [cepTarget, setCepTarget] = useState<'client' | 'parente' | 'atividadeFinanceira'>('client');
   const [printingSimIndex, setPrintingSimIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -284,7 +292,7 @@ export default function App() {
         cidade: address.localidade,
         estado: address.uf
       }));
-    } else {
+    } else if (cepTarget === 'parente') {
       setFormData(prev => ({
         ...prev,
         parenteCep: address.cep,
@@ -292,6 +300,15 @@ export default function App() {
         parenteBairro: address.bairro,
         parenteCidade: address.localidade,
         parenteEstado: address.uf
+      }));
+    } else if (cepTarget === 'atividadeFinanceira') {
+      setFormData(prev => ({
+        ...prev,
+        atividadeFinanceiraCep: address.cep,
+        atividadeFinanceiraEndereco: address.logradouro,
+        atividadeFinanceiraBairro: address.bairro,
+        atividadeFinanceiraCidade: address.localidade,
+        atividadeFinanceiraEstado: address.uf
       }));
     }
     setShowCepSearchModal(false);
@@ -533,11 +550,12 @@ export default function App() {
     }
   };
 
-  const fetchAddress = async (cep: string, isParente: boolean) => {
+  const fetchAddress = async (cep: string, target: 'client' | 'parente' | 'atividadeFinanceira') => {
     const cleanCep = cep.replace(/\D/g, '');
     if (cleanCep.length !== 8) return;
 
-    if (isParente) setLoadingParenteCep(true);
+    if (target === 'parente') setLoadingParenteCep(true);
+    else if (target === 'atividadeFinanceira') setLoadingAtividadeCep(true);
     else setLoadingCep(true);
 
     try {
@@ -545,13 +563,21 @@ export default function App() {
       const data = await response.json();
 
       if (!data.erro) {
-        if (isParente) {
+        if (target === 'parente') {
           setFormData(prev => ({
             ...prev,
             parenteEndereco: data.logradouro || '',
             parenteBairro: data.bairro || '',
             parenteCidade: data.localidade || '',
             parenteEstado: data.uf || ''
+          }));
+        } else if (target === 'atividadeFinanceira') {
+          setFormData(prev => ({
+            ...prev,
+            atividadeFinanceiraEndereco: data.logradouro || '',
+            atividadeFinanceiraBairro: data.bairro || '',
+            atividadeFinanceiraCidade: data.localidade || '',
+            atividadeFinanceiraEstado: data.uf || ''
           }));
         } else {
           setFormData(prev => ({
@@ -566,13 +592,14 @@ export default function App() {
     } catch (error) {
       console.error("Erro ao buscar CEP:", error);
     } finally {
-      if (isParente) setLoadingParenteCep(false);
+      if (target === 'parente') setLoadingParenteCep(false);
+      else if (target === 'atividadeFinanceira') setLoadingAtividadeCep(false);
       else setLoadingCep(false);
     }
   };
 
-  const handleCepBlur = (e: React.FocusEvent<HTMLInputElement>, isParente: boolean) => {
-    fetchAddress(e.target.value, isParente);
+  const handleCepBlur = (e: React.FocusEvent<HTMLInputElement>, target: 'client' | 'parente' | 'atividadeFinanceira') => {
+    fetchAddress(e.target.value, target);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -2313,6 +2340,9 @@ export default function App() {
                   <h3 className="text-lg font-semibold text-slate-800 mb-4 mt-8 border-b pb-2">Outras Informações</h3>
                   <div className="space-y-3 text-sm">
                     <p><span className="font-medium text-slate-500">Atividade Financeira:</span> {selectedClient.atividadeFinanceira || 'Não informado'}</p>
+                    {selectedClient.atividadeFinanceiraEndereco && (
+                      <p><span className="font-medium text-slate-500">Endereço da Atividade:</span> {selectedClient.atividadeFinanceiraEndereco}, {selectedClient.atividadeFinanceiraNumero} {selectedClient.atividadeFinanceiraComplemento && `- ${selectedClient.atividadeFinanceiraComplemento}`} - {selectedClient.atividadeFinanceiraBairro}, {selectedClient.atividadeFinanceiraCidade} - {selectedClient.atividadeFinanceiraEstado} (CEP: {selectedClient.atividadeFinanceiraCep})</p>
+                    )}
                     <p><span className="font-medium text-slate-500">Indicação:</span> {selectedClient.quemIndicou || 'Não informado'}</p>
                     <p><span className="font-medium text-slate-500">Redes Sociais:</span> {selectedClient.redesSociais || 'Não informado'}</p>
                     <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
@@ -3848,7 +3878,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="md:col-span-1 relative">
                 <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
-                <input type="text" name="cep" value={formData.cep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, false)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required />
+                <input type="text" name="cep" value={formData.cep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, 'client')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required />
                 {loadingCep && <div className="absolute right-3 top-9 w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>}
                 <button 
                   type="button" 
@@ -3918,7 +3948,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
               <div className="md:col-span-1 relative">
                 <label className="block text-sm font-medium text-slate-700 mb-1">CEP do parente</label>
-                <input type="text" name="parenteCep" value={formData.parenteCep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, true)} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required />
+                <input type="text" name="parenteCep" value={formData.parenteCep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, 'parente')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required />
                 {loadingParenteCep && <div className="absolute right-3 top-9 w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>}
                 <button 
                   type="button" 
@@ -3969,9 +3999,57 @@ export default function App() {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Qual a sua atividade financeira?</label>
                 <input type="text" name="atividadeFinanceira" value={formData.atividadeFinanceira} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+              </div>
+
+              <div className="md:col-span-2 mt-2 mb-4">
+                <h3 className="text-md font-medium text-slate-700 mb-4 border-b pb-2">Endereço da Atividade Financeira</h3>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="md:col-span-1 relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">CEP</label>
+                    <input type="text" name="atividadeFinanceiraCep" value={formData.atividadeFinanceiraCep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, 'atividadeFinanceira')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" />
+                    {loadingAtividadeCep && <div className="absolute right-3 top-9 w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>}
+                    <button 
+                      type="button" 
+                      onClick={() => { setCepTarget('atividadeFinanceira'); setShowCepSearchModal(true); }}
+                      className="text-xs text-yellow-600 hover:text-yellow-700 mt-1 underline"
+                    >
+                      Não sei o CEP
+                    </button>
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Endereço</label>
+                    <input type="text" name="atividadeFinanceiraEndereco" value={formData.atividadeFinanceiraEndereco} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Número</label>
+                    <input type="text" name="atividadeFinanceiraNumero" value={formData.atividadeFinanceiraNumero} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+
+                  <div className="md:col-span-3">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Complemento</label>
+                    <input type="text" name="atividadeFinanceiraComplemento" value={formData.atividadeFinanceiraComplemento} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Bairro</label>
+                    <input type="text" name="atividadeFinanceiraBairro" value={formData.atividadeFinanceiraBairro} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+                  
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
+                    <input type="text" name="atividadeFinanceiraCidade" value={formData.atividadeFinanceiraCidade} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+                  
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
+                    <input type="text" name="atividadeFinanceiraEstado" value={formData.atividadeFinanceiraEstado} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" />
+                  </div>
+                </div>
               </div>
               
               <div>
