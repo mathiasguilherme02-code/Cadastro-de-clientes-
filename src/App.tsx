@@ -105,6 +105,8 @@ export default function App() {
   const [isEditingClientData, setIsEditingClientData] = useState(false);
   const [editingParcela, setEditingParcela] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
   const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0, dataPagamento: ''});
+  const [addingAbatimento, setAddingAbatimento] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
+  const [newAbatimento, setNewAbatimento] = useState({ data: '', valor: '' });
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
@@ -1338,6 +1340,7 @@ export default function App() {
                       const isVencendoHoje = !p.paga && vencimento.getTime() === hoje.getTime();
                       let diasAtraso = 0;
                       let valorAtualizado = p.valor;
+                      const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
                       
                       if (isVencida) {
                         let dataBase = hoje;
@@ -1353,6 +1356,8 @@ export default function App() {
                         const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
                         valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                       }
+                      
+                      valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
 
                       return (
                         <div key={i} className={`border-2 rounded-xl p-5 ${isVencida ? 'border-red-400 bg-red-50 shadow-sm' : p.paga ? 'border-emerald-200 bg-emerald-50' : isVencendoHoje ? 'border-yellow-400 bg-yellow-50 shadow-sm' : 'border-slate-200 bg-white'}`}>
@@ -1379,6 +1384,28 @@ export default function App() {
                               <span className="font-medium text-slate-700">{formatCurrency(p.valor)}</span>
                             </div>
                           </div>
+
+                          {p.abatimentos && p.abatimentos.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-slate-200">
+                              <h5 className="text-sm font-semibold text-slate-700 mb-2">Abatimentos Realizados</h5>
+                              <div className="space-y-1 mb-2">
+                                {p.abatimentos.map((abatimento: any, aIdx: number) => (
+                                  <div key={aIdx} className="flex justify-between text-xs text-slate-600 bg-slate-50 p-1.5 rounded">
+                                    <span>{formatDate(abatimento.data)}</span>
+                                    <span className="font-medium text-emerald-600">{formatCurrency(abatimento.valor)}</span>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between text-xs font-semibold text-slate-700 pt-1 border-t border-slate-200 mt-1">
+                                  <span>Total Abatido:</span>
+                                  <span className="text-emerald-600">{formatCurrency(p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0))}</span>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-slate-800 pt-1">
+                                  <span>Restante:</span>
+                                  <span>{formatCurrency(valorAtualizado)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           
                           {isVencida && (
                             <div className="mt-4 pt-4 border-t border-red-200">
@@ -1413,6 +1440,94 @@ export default function App() {
       </div>
     );
   }
+
+  const handleAddAbatimento = async (simIndex: number, parcelaIndex: number) => {
+    if (!newAbatimento.data || !newAbatimento.valor) {
+      alert('Preencha a data e o valor do abatimento.');
+      return;
+    }
+
+    const valorNum = parseFloat(newAbatimento.valor);
+    if (isNaN(valorNum) || valorNum <= 0) {
+      alert('Valor inválido.');
+      return;
+    }
+
+    const updatedClients = clients.map(c => {
+      if (c.id === selectedClient.id) {
+        const updatedSimulacoes = [...c.simulacoes];
+        const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+        
+        const abatimentos = novasParcelas[parcelaIndex].abatimentos || [];
+        
+        novasParcelas[parcelaIndex] = {
+          ...novasParcelas[parcelaIndex],
+          abatimentos: [...abatimentos, { data: newAbatimento.data, valor: valorNum }]
+        };
+        
+        updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+        
+        const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+        
+        // Save to API
+        fetch(`/api/clients/${c.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(updatedClient)
+        }).catch(err => console.error("Erro ao salvar abatimento:", err));
+
+        setSelectedClient(updatedClient);
+        return updatedClient;
+      }
+      return c;
+    });
+    
+    setClients(updatedClients);
+    setAddingAbatimento(null);
+    setNewAbatimento({ data: '', valor: '' });
+  };
+
+  const handleRemoveAbatimento = async (simIndex: number, parcelaIndex: number, abatimentoIndex: number) => {
+    if (!confirm('Tem certeza que deseja remover este abatimento?')) return;
+
+    const updatedClients = clients.map(c => {
+      if (c.id === selectedClient.id) {
+        const updatedSimulacoes = [...c.simulacoes];
+        const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+        
+        const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
+        abatimentos.splice(abatimentoIndex, 1);
+        
+        novasParcelas[parcelaIndex] = {
+          ...novasParcelas[parcelaIndex],
+          abatimentos
+        };
+        
+        updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+        
+        const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+        
+        // Save to API
+        fetch(`/api/clients/${c.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(updatedClient)
+        }).catch(err => console.error("Erro ao remover abatimento:", err));
+
+        setSelectedClient(updatedClient);
+        return updatedClient;
+      }
+      return c;
+    });
+    
+    setClients(updatedClients);
+  };
 
   const handleDeleteClient = async (id: string) => {
     try {
@@ -1553,15 +1668,19 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
         .flatMap((s: any, sIdx: number) => 
-        (s.parcelas || []).map((p: any, pIdx: number) => ({
-          ...p,
-          clientId: c.id,
-          clientName: c.nomeCompleto,
-          clientPhone: c.telefone,
-          simIndex: sIdx,
-          parcelaIndex: pIdx,
-          taxaAtrasoDia: s.taxaAtrasoDia
-        }))
+        (s.parcelas || []).map((p: any, pIdx: number) => {
+          const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+          return {
+            ...p,
+            valorRestante: Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal),
+            clientId: c.id,
+            clientName: c.nomeCompleto,
+            clientPhone: c.telefone,
+            simIndex: sIdx,
+            parcelaIndex: pIdx,
+            taxaAtrasoDia: s.taxaAtrasoDia
+          };
+        })
       )
     ).filter(p => !p.paga)
      .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
@@ -1596,15 +1715,35 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
           .flatMap((s: any, sIdx: number) => 
-            (s.parcelas || []).filter((p: any) => !p.paga).map((p: any) => ({
-              id: `prev-${c.id}-${sIdx}-${p.numero}`,
-              data: p.dataVencimento,
-              tipo: 'entrada_prevista',
-              descricao: `Previsão: ${c.nomeCompleto}`,
-              detalhes: `Parcela ${p.numero} (Pendente) - CPF: ${c.cpf}`,
-              valor: parseFloat(p.valor || 0),
-              clienteId: c.id
-            }))
+            (s.parcelas || []).flatMap((p: any) => 
+              (p.abatimentos || []).map((a: any, aIdx: number) => ({
+                id: `a-${c.id}-${sIdx}-${p.numero}-${aIdx}`,
+                data: a.data,
+                tipo: 'entrada',
+                descricao: `Abatimento: ${c.nomeCompleto}`,
+                detalhes: `Parcela ${p.numero} - CPF: ${c.cpf}`,
+                valor: parseFloat(a.valor || 0),
+                clienteId: c.id
+              }))
+            )
+          )
+      ),
+      ...clients.flatMap(c => 
+        (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
+          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+          .flatMap((s: any, sIdx: number) => 
+            (s.parcelas || []).filter((p: any) => !p.paga).map((p: any) => {
+              const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+              return {
+                id: `prev-${c.id}-${sIdx}-${p.numero}`,
+                data: p.dataVencimento,
+                tipo: 'entrada_prevista',
+                descricao: `Previsão: ${c.nomeCompleto}`,
+                detalhes: `Parcela ${p.numero} (Pendente) - CPF: ${c.cpf}`,
+                valor: Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal),
+                clienteId: c.id
+              };
+            })
           )
       ),
       ...clients.flatMap(c => 
@@ -1642,10 +1781,12 @@ export default function App() {
     const monthEntradas = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
-        .flatMap((s: any) => 
-        (s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoYear))
+        .flatMap((s: any) => [
+          ...(s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoYear)).map((p: any) => parseFloat(p.valor || 0)),
+          ...(s.parcelas || []).flatMap((p: any) => (p.abatimentos || []).filter((a: any) => a.data?.startsWith(fluxoYear)).map((a: any) => parseFloat(a.valor || 0)))
+        ]
       )
-    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
+    ).reduce((acc, val) => acc + val, 0);
 
     const monthPendentes = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
@@ -1657,9 +1798,12 @@ export default function App() {
           const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0,0,0,0);
           return !p.paga && vencimento >= hoje && p.dataVencimento.startsWith(fluxoYear);
+        }).map((p: any) => {
+          const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+          return Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal);
         })
       )
-    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
+    ).reduce((acc, val) => acc + val, 0);
 
     const monthInadimplencia = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
@@ -1671,9 +1815,12 @@ export default function App() {
           const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0,0,0,0);
           return !p.paga && vencimento < hoje && p.dataVencimento.startsWith(fluxoYear);
+        }).map((p: any) => {
+          const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+          return Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal);
         })
       )
-    ).reduce((acc, p) => acc + parseFloat(p.valor || 0), 0);
+    ).reduce((acc, val) => acc + val, 0);
 
     const monthSaidas = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
@@ -2618,6 +2765,7 @@ export default function App() {
                             
                             let diasAtraso = 0;
                             let valorAtualizado = p.valor;
+                            const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
                             
                             if (isVencida) {
                               let dataBase = hoje;
@@ -2633,6 +2781,8 @@ export default function App() {
                               const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
                               valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                             }
+                            
+                            valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
 
                             const isEditing = editingParcela?.simIndex === simIndex && editingParcela?.parcelaIndex === i;
 
@@ -2925,6 +3075,91 @@ export default function App() {
                                   </div>
                                 )}
                                 
+                                {!isEditing && (
+                                  <div className="mt-3 pt-3 border-t border-slate-200">
+                                    <div className="flex justify-between items-center mb-2">
+                                      <h5 className="text-sm font-semibold text-slate-700">Abatimentos</h5>
+                                      {!p.paga && (
+                                        <button
+                                          onClick={() => setAddingAbatimento({ simIndex, parcelaIndex: i })}
+                                          className="text-xs text-yellow-600 hover:text-yellow-700 font-medium flex items-center gap-1"
+                                        >
+                                          <Plus size={12} /> Adicionar
+                                        </button>
+                                      )}
+                                    </div>
+                                    
+                                    {p.abatimentos && p.abatimentos.length > 0 ? (
+                                      <div className="space-y-1 mb-2">
+                                        {p.abatimentos.map((abatimento: any, aIdx: number) => (
+                                          <div key={aIdx} className="flex justify-between text-xs text-slate-600 bg-slate-50 p-1.5 rounded">
+                                            <span>{formatDate(abatimento.data)}</span>
+                                            <div className="flex items-center gap-2">
+                                              <span className="font-medium text-emerald-600">{formatCurrency(abatimento.valor)}</span>
+                                              {!p.paga && (
+                                                <button 
+                                                  onClick={() => handleRemoveAbatimento(simIndex, i, aIdx)}
+                                                  className="text-red-400 hover:text-red-600"
+                                                >
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ))}
+                                        <div className="flex justify-between text-xs font-semibold text-slate-700 pt-1 border-t border-slate-200 mt-1">
+                                          <span>Total Abatido:</span>
+                                          <span className="text-emerald-600">{formatCurrency(p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0))}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs font-bold text-slate-800 pt-1">
+                                          <span>Restante:</span>
+                                          <span>{formatCurrency(valorAtualizado)}</span>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-xs text-slate-500 italic">Nenhum abatimento registrado.</p>
+                                    )}
+
+                                    {addingAbatimento?.simIndex === simIndex && addingAbatimento?.parcelaIndex === i && (
+                                      <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200 grid grid-cols-2 gap-2">
+                                        <div>
+                                          <label className="block text-xs text-slate-600 mb-1">Data</label>
+                                          <input 
+                                            type="date" 
+                                            value={newAbatimento.data}
+                                            onChange={(e) => setNewAbatimento({...newAbatimento, data: e.target.value})}
+                                            className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-yellow-500"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-slate-600 mb-1">Valor (R$)</label>
+                                          <input 
+                                            type="number" 
+                                            step="0.01"
+                                            value={newAbatimento.valor}
+                                            onChange={(e) => setNewAbatimento({...newAbatimento, valor: e.target.value})}
+                                            className="w-full px-2 py-1 text-xs border border-slate-300 rounded outline-none focus:border-yellow-500"
+                                          />
+                                        </div>
+                                        <div className="col-span-2 flex justify-end gap-2 mt-1">
+                                          <button 
+                                            onClick={() => setAddingAbatimento(null)}
+                                            className="px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 rounded"
+                                          >
+                                            Cancelar
+                                          </button>
+                                          <button 
+                                            onClick={() => handleAddAbatimento(simIndex, i)}
+                                            className="px-2 py-1 text-xs bg-yellow-500 text-white hover:bg-yellow-600 rounded"
+                                          >
+                                            Salvar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 {isVencida && !isEditing && (
                                   <div className="mt-3 pt-3 border-t border-red-200">
                                     <div className="text-red-600 font-semibold mb-1 text-sm flex items-center gap-1">
@@ -2957,7 +3192,7 @@ export default function App() {
                                 {isVencendoHoje && (
                                   <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                     <a 
-                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
+                                      href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -3167,14 +3402,14 @@ export default function App() {
                                   <td className="py-3 px-6 font-medium text-slate-800">{p.clientName}</td>
                                   <td className="py-3 px-6 text-slate-600">{p.clientPhone}</td>
                                   <td className="py-3 px-6 text-slate-600">{p.numero}</td>
-                                  <td className="py-3 px-6 text-slate-600">{formatCurrency(p.valor)}</td>
+                                  <td className="py-3 px-6 text-slate-600">{formatCurrency(p.valorRestante)}</td>
                                   <td className="py-3 px-6 text-right">
                                     <div className="flex items-center justify-end gap-2">
                                       <a 
                                         href={`https://wa.me/55${p.clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
                                           (() => {
                                             if (isVencendoHoje) {
-                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                              return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                             } else if (isVencida) {
                                               let dataBase = hoje;
                                               if (p.jurosCongelados && p.dataCongelamento) {
@@ -3187,10 +3422,12 @@ export default function App() {
                                               const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
                                               const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                                               const taxaDia = parseFloat(p.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
+                                              const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
                                               let valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                                              valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
                                               return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${formatDate(p.dataVencimento)}. ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
                                             }
-                                            return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valor)} vencerá em ${formatDate(p.dataVencimento)}.`;
+                                            return `Olá ${p.clientName.split(' ')[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                           })()
                                         )}`}
                                         target="_blank"
