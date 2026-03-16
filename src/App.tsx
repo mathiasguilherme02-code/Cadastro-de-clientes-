@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -100,6 +100,7 @@ export default function App() {
   const [showReprovadoAlert, setShowReprovadoAlert] = useState(false);
   const [showActiveLoanAlert, setShowActiveLoanAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [isEditingClientData, setIsEditingClientData] = useState(false);
@@ -2317,19 +2318,19 @@ export default function App() {
 
           <div className="flex gap-4 mb-8 border-b border-slate-200">
             <button
-              onClick={() => { setAdminTab('clientes'); setSelectedClient(null); }}
+              onClick={() => { setAdminTab('clientes'); setSelectedClient(null); setSearchTerm(''); }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'clientes' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Clientes
             </button>
             <button
-              onClick={() => { setAdminTab('cronograma'); setSelectedClient(null); }}
+              onClick={() => { setAdminTab('cronograma'); setSelectedClient(null); setSearchTerm(''); }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'cronograma' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Cronograma de Clientes
             </button>
             <button
-              onClick={() => { setAdminTab('fluxo_caixa'); setSelectedClient(null); }}
+              onClick={() => { setAdminTab('fluxo_caixa'); setSelectedClient(null); setSearchTerm(''); }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'fluxo_caixa' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Fluxo de Caixa
@@ -3271,7 +3272,19 @@ export default function App() {
             </div>
           ) : !selectedClient && adminTab === 'clientes' ? (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-              {clients.filter(c => c.id !== 'admin-transactions').length > 0 ? (
+              <div className="p-6 border-b border-slate-200">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                  <input
+                    type="text"
+                    placeholder="Buscar clientes por nome ou CPF..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+              {clients.filter(c => c.id !== 'admin-transactions').filter(c => c.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || c.cpf.includes(searchTerm)).length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -3286,7 +3299,9 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.filter(c => c.id !== 'admin-transactions').sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => {
+                      {clients.filter(c => c.id !== 'admin-transactions')
+                        .filter(c => c.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || c.cpf.includes(searchTerm))
+                        .sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => {
                         const status = getClientStatus(client);
                         const statusDisplay = getStatusDisplay(status);
                         return (
@@ -3339,8 +3354,16 @@ export default function App() {
               ) : (
                 <div className="p-12 text-center flex flex-col items-center justify-center">
                   <Users size={64} className="text-slate-300 mb-4" />
-                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhum cliente cadastrado</h3>
-                  <p className="text-slate-500">Os clientes que preencherem o formulário aparecerão aqui.</p>
+                  <h3 className="text-xl font-medium text-slate-700 mb-2">
+                    {clients.filter(c => c.id !== 'admin-transactions').length === 0 
+                      ? 'Nenhum cliente cadastrado' 
+                      : 'Nenhum cliente encontrado'}
+                  </h3>
+                  <p className="text-slate-500">
+                    {clients.filter(c => c.id !== 'admin-transactions').length === 0 
+                      ? 'Os clientes que preencherem o formulário aparecerão aqui.' 
+                      : 'Tente buscar por outro nome ou CPF.'}
+                  </p>
                 </div>
               )}
             </div>
