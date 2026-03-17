@@ -2306,7 +2306,7 @@ export default function App() {
 
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
-        <div className="absolute top-4 left-4 flex gap-3">
+        <div className="absolute top-4 left-4 flex gap-3 print:hidden">
           <button 
             onClick={toggleFullscreen}
             className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
@@ -2317,7 +2317,7 @@ export default function App() {
           </button>
         </div>
         <div className="max-w-[98%] mx-auto">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-8 print:hidden">
             <div>
               <h1 className="text-3xl font-bold text-slate-800">Painel do Administrador</h1>
               <p className="text-slate-500">Gerenciamento de clientes cadastrados</p>
@@ -2366,7 +2366,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="flex gap-4 mb-8 border-b border-slate-200">
+          <div className="flex gap-4 mb-8 border-b border-slate-200 print:hidden">
             <button
               onClick={() => { setAdminTab('clientes'); setSelectedClient(null); setSearchTerm(''); }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === 'clientes' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
@@ -3269,7 +3269,7 @@ export default function App() {
                           })}
                         </div>
                         
-                        <div className="mt-6 pt-6 border-t border-slate-200">
+                        <div className="mt-6 pt-6 border-t border-slate-200 print:hidden">
                           <h4 className="font-semibold text-slate-700 mb-2">Anotações do Empréstimo</h4>
                           <textarea
                             className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none resize-y min-h-[100px]"
