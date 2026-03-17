@@ -123,6 +123,7 @@ export default function App() {
     quantidade: '1',
     taxaJuros: '1',
     taxaAtrasoDia: '1',
+    dataVencimentoUnica: '',
     parcelas: [] as any[]
   });
   const [editingSimIndex, setEditingSimIndex] = useState<number | null>(null);
@@ -132,7 +133,8 @@ export default function App() {
     quantidade: '1',
     taxaJuros: '1',
     taxaAtrasoDia: '1',
-    dataInicial: getLocalISODate()
+    dataInicial: getLocalISODate(),
+    dataVencimentoUnica: ''
   });
 
   useEffect(() => {
@@ -466,17 +468,28 @@ export default function App() {
     const taxa = parseFloat(adminSettings.taxaJuros) || 1;
     
     let diasTotais = 30;
+    let dataAtual = new Date();
+    dataAtual.setHours(0, 0, 0, 0);
+
     if (simulacao.prazo === 'dia') diasTotais = qtd;
     else if (simulacao.prazo === 'semanal') diasTotais = qtd * 7;
     else if (simulacao.prazo === 'quinzenal') diasTotais = qtd * 15;
     else if (simulacao.prazo === 'mensal') diasTotais = qtd * 30;
-    else if (simulacao.prazo === 'única') diasTotais = 30;
+    else if (simulacao.prazo === 'única') {
+      if (!simulacao.dataVencimentoUnica) {
+        alert('Por favor, informe a data de pagamento para a parcela única.');
+        return;
+      }
+      const dataVenc = parseLocalDate(simulacao.dataVencimentoUnica);
+      dataVenc.setHours(0, 0, 0, 0);
+      const diffTime = dataVenc.getTime() - dataAtual.getTime();
+      diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
 
     const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
-    let dataAtual = new Date();
 
     for (let i = 1; i <= qtd; i++) {
       let dataVencimento = new Date(dataAtual);
@@ -489,7 +502,7 @@ export default function App() {
       } else if (simulacao.prazo === 'mensal') {
         dataVencimento.setMonth(dataVencimento.getMonth() + i);
       } else if (simulacao.prazo === 'única') {
-        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+        dataVencimento = parseLocalDate(simulacao.dataVencimentoUnica);
       }
 
       novasParcelas.push({
@@ -1256,7 +1269,8 @@ export default function App() {
                     quantidade: '1',
                     parcelas: [],
                     taxaJuros: adminSettings.taxaJuros,
-                    taxaAtrasoDia: adminSettings.taxaAtrasoDia
+                    taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+                    dataVencimentoUnica: ''
                   });
                   setView('simulation');
                 }}
@@ -2075,7 +2089,8 @@ export default function App() {
       quantidade: sim.quantidade || '1',
       taxaJuros: sim.taxaJuros || adminSettings.taxaJuros,
       taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
-      dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate()
+      dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate(),
+      dataVencimentoUnica: sim.prazo === 'única' && sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split('T')[0] : ''
     });
   };
 
@@ -2096,17 +2111,28 @@ export default function App() {
     const taxa = parseFloat(editSimData.taxaJuros) || 1;
     
     let diasTotais = 30;
+    let dataAtual = editSimData.dataInicial ? parseLocalDate(editSimData.dataInicial) : new Date();
+    dataAtual.setHours(0, 0, 0, 0);
+
     if (editSimData.prazo === 'dia') diasTotais = qtd;
     else if (editSimData.prazo === 'semanal') diasTotais = qtd * 7;
     else if (editSimData.prazo === 'quinzenal') diasTotais = qtd * 15;
     else if (editSimData.prazo === 'mensal') diasTotais = qtd * 30;
-    else if (editSimData.prazo === 'única') diasTotais = 30;
+    else if (editSimData.prazo === 'única') {
+      if (!editSimData.dataVencimentoUnica) {
+        alert('Por favor, informe a data de pagamento para a parcela única.');
+        return;
+      }
+      const dataVenc = parseLocalDate(editSimData.dataVencimentoUnica);
+      dataVenc.setHours(0, 0, 0, 0);
+      const diffTime = dataVenc.getTime() - dataAtual.getTime();
+      diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
 
     const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
-    let dataAtual = editSimData.dataInicial ? parseLocalDate(editSimData.dataInicial) : new Date();
 
     for (let i = 1; i <= qtd; i++) {
       let dataVencimento = new Date(dataAtual);
@@ -2119,7 +2145,7 @@ export default function App() {
       } else if (editSimData.prazo === 'mensal') {
         dataVencimento.setMonth(dataVencimento.getMonth() + i);
       } else if (editSimData.prazo === 'única') {
-        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+        dataVencimento = parseLocalDate(editSimData.dataVencimentoUnica);
       }
 
       novasParcelas.push({
@@ -2443,7 +2469,8 @@ export default function App() {
                         quantidade: '1',
                         parcelas: [],
                         taxaJuros: adminSettings.taxaJuros,
-                        taxaAtrasoDia: adminSettings.taxaAtrasoDia
+                        taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+                        dataVencimentoUnica: ''
                       });
                       setView('simulation');
                     }}
@@ -2677,7 +2704,7 @@ export default function App() {
                                   <option value="única">Parcela Única</option>
                                 </select>
                               </div>
-                              {editSimData.prazo !== 'única' && (
+                              {editSimData.prazo !== 'única' ? (
                                 <div>
                                   <label className="block text-sm font-medium text-slate-700 mb-1">Quantidade de Parcelas</label>
                                   <input
@@ -2685,6 +2712,16 @@ export default function App() {
                                     min="1"
                                     value={editSimData.quantidade}
                                     onChange={(e) => setEditSimData({...editSimData, quantidade: e.target.value})}
+                                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                  />
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-700 mb-1">Data de Pagamento</label>
+                                  <input
+                                    type="date"
+                                    value={editSimData.dataVencimentoUnica}
+                                    onChange={(e) => setEditSimData({...editSimData, dataVencimentoUnica: e.target.value})}
                                     className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                                   />
                                 </div>
@@ -3984,7 +4021,7 @@ export default function App() {
                   <option value="mensal">Mensal</option>
                 </select>
               </div>
-              {simulacao.prazo !== 'única' && (
+              {simulacao.prazo !== 'única' ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Quantidade de Parcelas</label>
                   <input 
@@ -3992,6 +4029,16 @@ export default function App() {
                     min="1"
                     value={simulacao.quantidade} 
                     onChange={(e) => setSimulacao({...simulacao, quantidade: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Data de Pagamento</label>
+                  <input 
+                    type="date" 
+                    value={simulacao.dataVencimentoUnica} 
+                    onChange={(e) => setSimulacao({...simulacao, dataVencimentoUnica: e.target.value})}
                     className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
                   />
                 </div>
