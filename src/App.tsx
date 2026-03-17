@@ -1845,8 +1845,7 @@ export default function App() {
     const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
 
     const fundoDeCaixa = unifiedTransactions.reduce((acc: number, t: any) => {
-      const tPeriod = t.data ? t.data.substring(0, fluxoFilter.length) : '';
-      if (tPeriod && tPeriod <= fluxoFilter) {
+      if (t.data && t.data.startsWith(fluxoFilter)) {
         if (['entrada', 'aporte'].includes(t.tipo)) {
           return acc + t.valor;
         } else if (['saida', 'retirada'].includes(t.tipo)) {
