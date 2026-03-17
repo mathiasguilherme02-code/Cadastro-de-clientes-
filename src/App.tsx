@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -1841,6 +1841,15 @@ export default function App() {
 
     const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
 
+    const fundoDeCaixa = unifiedTransactions.reduce((acc: number, t: any) => {
+      if (['entrada', 'aporte'].includes(t.tipo)) {
+        return acc + t.valor;
+      } else if (['saida', 'retirada'].includes(t.tipo)) {
+        return acc - t.valor;
+      }
+      return acc;
+    }, 0);
+
     const handleAddRetirada = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!newRetirada.valor || !newRetirada.descricao) return;
@@ -3513,6 +3522,14 @@ export default function App() {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+                  <div className={`border p-4 rounded-xl flex flex-col justify-between ${fundoDeCaixa >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-rose-50 border-rose-100'}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Landmark size={18} className={fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'} />
+                      <p className={`text-xs font-semibold uppercase tracking-wider ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>Fundo de Caixa</p>
+                    </div>
+                    <p className={`text-xl font-bold ${fundoDeCaixa >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>{formatCurrency(fundoDeCaixa)}</p>
+                  </div>
+
                   <div className="bg-green-50 border border-green-100 p-4 rounded-xl flex flex-col justify-between">
                     <div className="flex items-center gap-2 mb-2">
                       <ArrowUpRight size={18} className="text-green-600" />
@@ -3561,12 +3578,12 @@ export default function App() {
                     <p className="text-xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
 
-                  <div className={`md:col-span-3 lg:col-span-2 border p-4 rounded-xl flex flex-col justify-between ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
+                  <div className={`border p-4 rounded-xl flex flex-col justify-between ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <Wallet size={18} className={saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'} />
                       <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Ano</p>
                     </div>
-                    <p className={`text-2xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
+                    <p className={`text-xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
                   </div>
                 </div>
 
