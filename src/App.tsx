@@ -1845,7 +1845,8 @@ export default function App() {
     const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
 
     const fundoDeCaixa = unifiedTransactions.reduce((acc: number, t: any) => {
-      if (t.data && t.data.startsWith(fluxoFilter)) {
+      const tPeriod = t.data ? t.data.substring(0, fluxoFilter.length) : '';
+      if (tPeriod && tPeriod <= fluxoFilter) {
         if (['entrada', 'aporte'].includes(t.tipo)) {
           return acc + t.valor;
         } else if (['saida', 'retirada'].includes(t.tipo)) {
@@ -3551,9 +3552,10 @@ export default function App() {
                   <div className={`border p-4 rounded-xl flex flex-col justify-between ${fundoDeCaixa >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-rose-50 border-rose-100'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <Landmark size={18} className={fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'} />
-                      <p className={`text-xs font-semibold uppercase tracking-wider ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>Fundo de Caixa</p>
+                      <p className={`text-xs font-semibold uppercase tracking-wider ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>Fundo de Caixa (Acumulado)</p>
                     </div>
                     <p className={`text-xl font-bold ${fundoDeCaixa >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>{formatCurrency(fundoDeCaixa)}</p>
+                    <p className={`text-[10px] mt-1 ${fundoDeCaixa >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>Saldo total até o período</p>
                   </div>
 
                   <div className="bg-green-50 border border-green-100 p-4 rounded-xl flex flex-col justify-between">
@@ -3610,6 +3612,7 @@ export default function App() {
                       <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Período</p>
                     </div>
                     <p className={`text-xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
+                    <p className={`text-[10px] mt-1 ${saldo >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>Entradas + Aportes - Saídas - Retiradas</p>
                   </div>
                 </div>
 
