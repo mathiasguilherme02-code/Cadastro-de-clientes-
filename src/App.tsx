@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -124,7 +124,9 @@ export default function App() {
     taxaJuros: '1',
     taxaAtrasoDia: '1',
     dataVencimentoUnica: '',
-    parcelas: [] as any[]
+    parcelas: [] as any[],
+    isRenegociacao: false,
+    renegociadoFromSimIndex: undefined as number | undefined
   });
   const [editingSimIndex, setEditingSimIndex] = useState<number | null>(null);
   const [editSimData, setEditSimData] = useState({
@@ -801,6 +803,62 @@ export default function App() {
   }
 };
 
+  const handleRenegociar = (simIndex: number) => {
+    if (!selectedClient) return;
+    const sim = selectedClient.simulacoes[simIndex];
+    
+    let totalOwed = 0;
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    
+    sim.parcelas.forEach((p: any) => {
+      if (!p.paga) {
+        const vencimento = parseLocalDate(p.dataVencimento);
+        vencimento.setHours(0,0,0,0);
+        const isVencida = vencimento < hoje;
+        let valorAtualizado = p.valor;
+        const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+        
+        if (isVencida) {
+          let dataBase = hoje;
+          if (p.jurosCongelados && p.dataCongelamento) {
+            const dataCongelamento = parseLocalDate(p.dataCongelamento);
+            dataCongelamento.setHours(0,0,0,0);
+            if (dataCongelamento < hoje) {
+              dataBase = dataCongelamento;
+            }
+          }
+          const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
+          valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+        }
+        valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
+        totalOwed += valorAtualizado;
+      }
+    });
+
+    if (totalOwed <= 0) {
+      alert('Não há saldo devedor para renegociar neste empréstimo.');
+      return;
+    }
+
+    setSimulacao({
+      valorSolicitado: totalOwed.toFixed(2),
+      prazo: 'única',
+      quantidade: '1',
+      dataVencimentoUnica: '',
+      taxaJuros: adminSettings.taxaJuros,
+      taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+      parcelas: [],
+      valorTotal: 0,
+      valorParcela: 0,
+      isRenegociacao: true,
+      renegociadoFromSimIndex: simIndex
+    });
+    setView('simulation');
+  };
+
   const handleAddSimulation = async () => {
     if (!selectedClient) return;
     
@@ -821,6 +879,18 @@ export default function App() {
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
     const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
+    
+    if (simulacao.isRenegociacao && simulacao.renegociadoFromSimIndex !== undefined) {
+      const oldSimIndex = simulacao.renegociadoFromSimIndex + 1;
+      if (updatedSimulacoes[oldSimIndex]) {
+        updatedSimulacoes[oldSimIndex] = {
+          ...updatedSimulacoes[oldSimIndex],
+          status: 'renegociado',
+          arquivado: true,
+          anotacoes: (updatedSimulacoes[oldSimIndex].anotacoes || '') + `\n[${getLocalISODateTime()}] Renegociado para um novo empréstimo.`
+        };
+      }
+    }
     
     const updatedClient = {
       ...selectedClient,
@@ -1279,7 +1349,8 @@ export default function App() {
                     parcelas: [],
                     taxaJuros: adminSettings.taxaJuros,
                     taxaAtrasoDia: adminSettings.taxaAtrasoDia,
-                    dataVencimentoUnica: ''
+                    dataVencimentoUnica: '',
+                    isRenegociacao: false
                   });
                   setView('simulation');
                 }}
@@ -1755,7 +1826,7 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
           .flatMap((s: any, sIdx: number) => 
             (s.parcelas || []).filter((p: any) => !p.paga).map((p: any) => {
               const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
@@ -1773,7 +1844,7 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && !s.isRenegociacao)
           .map((s: any, sIdx: number) => ({
             id: `s-${c.id}-${sIdx}`,
             data: s.dataCriacao || c.dataCadastro || getLocalISODate(),
@@ -1817,7 +1888,7 @@ export default function App() {
 
     const monthPendentes = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => {
           const hoje = new Date();
@@ -1834,7 +1905,7 @@ export default function App() {
 
     const monthInadimplencia = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => {
           const hoje = new Date();
@@ -1853,7 +1924,7 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).filter((s: any) => {
         // If sim has dataCriacao, use it. Otherwise use client's dataCadastro
         const date = s.dataCriacao || c.dataCadastro;
-        return date && date.startsWith(fluxoFilter) && s.status !== 'pendente' && s.status !== 'reprovado';
+        return date && date.startsWith(fluxoFilter) && s.status !== 'pendente' && s.status !== 'reprovado' && !s.isRenegociacao;
       })
     ).reduce((acc, s) => acc + parseFloat(s.valorSolicitado || 0), 0);
 
@@ -2479,7 +2550,8 @@ export default function App() {
                         parcelas: [],
                         taxaJuros: adminSettings.taxaJuros,
                         taxaAtrasoDia: adminSettings.taxaAtrasoDia,
-                        dataVencimentoUnica: ''
+                        dataVencimentoUnica: '',
+                        isRenegociacao: false
                       });
                       setView('simulation');
                     }}
@@ -2670,6 +2742,13 @@ export default function App() {
                               </svg>
                             </button>
                             <button
+                              onClick={() => handleRenegociar(simIndex)}
+                              className="ml-2 text-blue-500 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
+                              title="Renegociar Empréstimo"
+                            >
+                              <RefreshCw size={18} />
+                            </button>
+                            <button
                               onClick={() => startEditingSimulacao(simIndex, sim)}
                               className="ml-2 text-indigo-500 hover:text-indigo-700 p-2 rounded-lg hover:bg-indigo-50 transition-colors"
                               title="Editar Empréstimo"
@@ -2784,7 +2863,7 @@ export default function App() {
                                 <p className="text-sm text-slate-500">Prazo</p>
                                 <p className="text-lg font-semibold text-slate-800 capitalize">{sim.prazo}</p>
                               </div>
-                              <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                              <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 print:hidden">
                                 <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
                                 <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao dia</p>
                                 <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * Dias Totais)</p>
@@ -4104,7 +4183,7 @@ export default function App() {
                       onClick={handleAddSimulation}
                       className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
                     >
-                      Adicionar Empréstimo
+                      {simulacao.isRenegociacao ? 'Confirmar Renegociação' : 'Adicionar Empréstimo'}
                     </button>
                   </div>
                 ) : (
