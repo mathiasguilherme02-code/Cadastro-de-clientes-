@@ -36,6 +36,7 @@ const initialFormData = {
   atividadeFinanceiraCidade: '',
   atividadeFinanceiraEstado: '',
   observacoes: '',
+  observacoesAdmin: '',
   statusManual: 'automatico',
   documentos: null as FileList | null
 };
@@ -2624,6 +2625,15 @@ export default function App() {
                       <p className="font-medium text-slate-500 mb-1">Observações Gerais:</p>
                       <p className="text-slate-700 whitespace-pre-wrap">{selectedClient.observacoes || 'Nenhuma observação registrada.'}</p>
                     </div>
+                    {adminToken && (
+                      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 print:hidden">
+                        <p className="font-bold text-yellow-800 mb-1 flex items-center gap-2">
+                          <FileText size={16} />
+                          Anotações Internas (Visão Admin):
+                        </p>
+                        <p className="text-yellow-900 whitespace-pre-wrap">{selectedClient.observacoesAdmin || 'Nenhuma anotação interna registrada.'}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -4548,6 +4558,23 @@ export default function App() {
                   placeholder="Informações relevantes sobre o cliente, referências, bens oferecidos como garantia, etc."
                 />
               </div>
+
+              {adminToken && (
+                <div className="md:col-span-2 bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                  <label className="block text-sm font-bold text-yellow-800 mb-1 flex items-center gap-2">
+                    <FileText size={16} />
+                    Anotações Internas (Visão Admin)
+                  </label>
+                  <p className="text-xs text-yellow-700 mb-2">Estas anotações são visíveis apenas para administradores.</p>
+                  <textarea 
+                    name="observacoesAdmin" 
+                    value={formData.observacoesAdmin || ''} 
+                    onChange={handleInputChange} 
+                    className="w-full px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all min-h-[120px] bg-white" 
+                    placeholder="Anotações internas, histórico de cobranças, detalhes confidenciais, etc."
+                  />
+                </div>
+              )}
 
               {isEditingClientData && (
                 <div className="md:col-span-2">
