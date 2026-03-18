@@ -44,6 +44,7 @@ const initialFormData = {
     prazo: '',
     taxaAplicada: '',
     formula: '',
+    taxaAtrasoDia: '',
     parcelas: [] as any[]
   },
   statusManual: 'automatico',
@@ -2759,10 +2760,10 @@ export default function App() {
                           </div>
                         </div>
 
-                        {(selectedClient.emprestimoAdmin.taxaAplicada || selectedClient.emprestimoAdmin.formula) && (
+                        {(selectedClient.emprestimoAdmin.taxaAplicada || selectedClient.emprestimoAdmin.formula || selectedClient.emprestimoAdmin.taxaAtrasoDia) && (
                           <div className="bg-yellow-100/50 p-3 rounded-lg border border-yellow-200 mb-4">
                             <p className="text-xs font-bold text-yellow-800 mb-2">Cálculo de Juros</p>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-3 gap-4">
                               <div>
                                 <p className="text-xs text-yellow-600 font-medium">Taxa aplicada</p>
                                 <p className="text-sm font-semibold text-yellow-900">{selectedClient.emprestimoAdmin.taxaAplicada || '-'}</p>
@@ -2770,6 +2771,10 @@ export default function App() {
                               <div>
                                 <p className="text-xs text-yellow-600 font-medium">Fórmula</p>
                                 <p className="text-sm font-semibold text-yellow-900">{selectedClient.emprestimoAdmin.formula || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-yellow-600 font-medium">Juros Atraso/Dia</p>
+                                <p className="text-sm font-semibold text-yellow-900">{selectedClient.emprestimoAdmin.taxaAtrasoDia ? `${selectedClient.emprestimoAdmin.taxaAtrasoDia}%` : '-'}</p>
                               </div>
                             </div>
                           </div>
@@ -2804,7 +2809,7 @@ export default function App() {
                                   }
                                   const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
                                   diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                  const taxaDia = parseFloat(adminSettings.taxaAtrasoDia) || 1;
+                                  const taxaDia = parseFloat(selectedClient.emprestimoAdmin.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
                                   valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
                                 }
                                 
@@ -5129,7 +5134,7 @@ export default function App() {
                       
                       <div className="bg-yellow-100/50 p-4 rounded-lg border border-yellow-200">
                         <p className="text-sm font-bold text-yellow-800 mb-2">Cálculo de Juros</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
                             <label className="block text-xs font-medium text-yellow-800 mb-1">Taxa aplicada</label>
                             <input 
@@ -5150,6 +5155,18 @@ export default function App() {
                               onChange={(e) => setFormData({
                                 ...formData, 
                                 emprestimoAdmin: { ...formData.emprestimoAdmin, formula: e.target.value }
+                              })}
+                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-yellow-800 mb-1">Juros Atraso/Dia (%)</label>
+                            <input 
+                              type="text" 
+                              value={formData.emprestimoAdmin?.taxaAtrasoDia || ''}
+                              onChange={(e) => setFormData({
+                                ...formData, 
+                                emprestimoAdmin: { ...formData.emprestimoAdmin, taxaAtrasoDia: e.target.value }
                               })}
                               className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
                             />
