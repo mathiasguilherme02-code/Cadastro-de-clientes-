@@ -102,6 +102,7 @@ export default function App() {
   const [showActiveLoanAlert, setShowActiveLoanAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('todos');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [clientToDelete, setClientToDelete] = useState<any | null>(null);
   const [isEditingClientData, setIsEditingClientData] = useState(false);
@@ -435,10 +436,12 @@ export default function App() {
           const diffTime = hoje.getTime() - vencimento.getTime();
           const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-          if (diasAtraso > 30) {
-            return 'muito_atrasado';
+          if (diasAtraso > 60) {
+            return 'inadimplente_antigo';
+          } else if (diasAtraso > 30) {
+            if (worstStatus !== 'inadimplente_antigo') worstStatus = 'muito_atrasado';
           } else if (diasAtraso > 0) {
-            if (worstStatus !== 'muito_atrasado') worstStatus = 'atrasado';
+            if (worstStatus !== 'inadimplente_antigo' && worstStatus !== 'muito_atrasado') worstStatus = 'atrasado';
           } else if (diasAtraso === 0) {
             if (worstStatus === 'sem_pendencias' || worstStatus === 'em_dia') worstStatus = 'vence_hoje';
           } else {
@@ -453,6 +456,7 @@ export default function App() {
 
   const getStatusDisplay = (status: string) => {
     switch(status) {
+      case 'inadimplente_antigo': return { color: 'bg-rose-900', text: 'text-white', label: 'Inadimplente Antigo' };
       case 'muito_atrasado': return { color: 'bg-red-900', text: 'text-white', label: '+30 Dias Atraso' };
       case 'atrasado': return { color: 'bg-red-500', text: 'text-white', label: 'Atrasado' };
       case 'vence_hoje': return { color: 'bg-yellow-400', text: 'text-yellow-900', label: 'Vence Hoje' };
@@ -3413,18 +3417,50 @@ export default function App() {
           ) : !selectedClient && adminTab === 'clientes' ? (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
               <div className="p-6 border-b border-slate-200">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                  <input
-                    type="text"
-                    placeholder="Buscar clientes por nome ou CPF..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
-                  />
+                <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                    <input
+                      type="text"
+                      placeholder="Buscar clientes por nome ou CPF..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none transition-all"
+                    />
+                  </div>
+                  <div className="w-full md:w-64">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none transition-all bg-white"
+                    >
+                      <option value="todos">Todos os Status</option>
+                      <option value="qualquer_atraso">Qualquer Atraso</option>
+                      <option value="inadimplente_antigo">Inadimplente Antigo (&gt; 60 dias)</option>
+                      <option value="muito_atrasado">+30 Dias Atraso</option>
+                      <option value="atrasado">Atrasado (1 a 30 dias)</option>
+                      <option value="vence_hoje">Vence Hoje</option>
+                      <option value="em_dia">Em Dia</option>
+                      <option value="sem_pendencias">Sem Pendências</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              {clients.filter(c => c.id !== 'admin-transactions').filter(c => c.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || c.cpf.includes(searchTerm)).length > 0 ? (
+              {(() => {
+                const filteredClients = clients
+                  .filter(c => c.id !== 'admin-transactions')
+                  .filter(c => c.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || c.cpf.includes(searchTerm))
+                  .filter(c => {
+                    if (statusFilter === 'todos') return true;
+                    const status = getClientStatus(c);
+                    if (statusFilter === 'qualquer_atraso') {
+                      return ['atrasado', 'muito_atrasado', 'inadimplente_antigo'].includes(status);
+                    }
+                    return status === statusFilter;
+                  })
+                  .sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto));
+
+                return filteredClients.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -3439,9 +3475,7 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clients.filter(c => c.id !== 'admin-transactions')
-                        .filter(c => c.nomeCompleto.toLowerCase().includes(searchTerm.toLowerCase()) || c.cpf.includes(searchTerm))
-                        .sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto)).map(client => {
+                      {filteredClients.map(client => {
                         const status = getClientStatus(client);
                         const statusDisplay = getStatusDisplay(status);
                         return (
@@ -3505,7 +3539,8 @@ export default function App() {
                       : 'Tente buscar por outro nome ou CPF.'}
                   </p>
                 </div>
-              )}
+              );
+              })()}
             </div>
           ) : null}
 
