@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -37,6 +37,15 @@ const initialFormData = {
   atividadeFinanceiraEstado: '',
   observacoes: '',
   observacoesAdmin: '',
+  emprestimoAdmin: {
+    ativo: false,
+    valorSolicitado: '',
+    totalPagar: '',
+    prazo: '',
+    taxaAplicada: '',
+    formula: '',
+    parcelas: [] as any[]
+  },
   statusManual: 'automatico',
   documentos: null as FileList | null
 };
@@ -2634,6 +2643,70 @@ export default function App() {
                         <p className="text-yellow-900 whitespace-pre-wrap">{selectedClient.observacoesAdmin || 'Nenhuma anotação interna registrada.'}</p>
                       </div>
                     )}
+
+                    {adminToken && selectedClient.emprestimoAdmin?.ativo && (
+                      <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200 print:hidden">
+                        <p className="font-bold text-yellow-800 mb-3 flex items-center gap-2">
+                          <FileText size={16} />
+                          Controle de Empréstimo (Visão Admin)
+                        </p>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                          <div className="bg-white p-3 rounded-lg border border-yellow-200">
+                            <p className="text-xs text-yellow-600 font-medium">Valor Solicitado</p>
+                            <p className="font-bold text-yellow-900">{selectedClient.emprestimoAdmin.valorSolicitado || 'N/A'}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg border border-yellow-200">
+                            <p className="text-xs text-yellow-600 font-medium">Total a Pagar</p>
+                            <p className="font-bold text-yellow-900">{selectedClient.emprestimoAdmin.totalPagar || 'N/A'}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-lg border border-yellow-200">
+                            <p className="text-xs text-yellow-600 font-medium">Prazo</p>
+                            <p className="font-bold text-yellow-900">{selectedClient.emprestimoAdmin.prazo || 'N/A'}</p>
+                          </div>
+                        </div>
+
+                        {(selectedClient.emprestimoAdmin.taxaAplicada || selectedClient.emprestimoAdmin.formula) && (
+                          <div className="bg-yellow-100/50 p-3 rounded-lg border border-yellow-200 mb-4">
+                            <p className="text-xs font-bold text-yellow-800 mb-2">Cálculo de Juros</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-xs text-yellow-600 font-medium">Taxa aplicada</p>
+                                <p className="text-sm font-semibold text-yellow-900">{selectedClient.emprestimoAdmin.taxaAplicada || '-'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-yellow-600 font-medium">Fórmula</p>
+                                <p className="text-sm font-semibold text-yellow-900">{selectedClient.emprestimoAdmin.formula || '-'}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="text-sm font-bold text-yellow-800 mb-2">Controle de Parcelas</p>
+                          {selectedClient.emprestimoAdmin.parcelas && selectedClient.emprestimoAdmin.parcelas.length > 0 ? (
+                            <div className="space-y-2">
+                              {selectedClient.emprestimoAdmin.parcelas.map((p: any, i: number) => (
+                                <div key={i} className={`flex flex-wrap items-center justify-between p-2 rounded border ${p.paga ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-yellow-200'}`}>
+                                  <div className="flex items-center gap-2">
+                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${p.paga ? 'bg-emerald-500 text-white' : 'border border-yellow-400'}`}>
+                                      {p.paga && <Check size={12} />}
+                                    </div>
+                                    <span className={`text-sm font-medium ${p.paga ? 'text-emerald-700' : 'text-yellow-900'}`}>{p.descricao || `Parcela ${i + 1}`}</span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-xs text-slate-500">{p.dataVencimento ? new Date(p.dataVencimento).toLocaleDateString('pt-BR') : 'Sem data'}</span>
+                                    <span className={`text-sm font-bold ${p.paga ? 'text-emerald-700' : 'text-yellow-900'}`}>{p.valor || 'R$ 0,00'}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-yellow-700 italic">Nenhuma parcela registrada.</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -4573,6 +4646,183 @@ export default function App() {
                     className="w-full px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all min-h-[120px] bg-white" 
                     placeholder="Anotações internas, histórico de cobranças, detalhes confidenciais, etc."
                   />
+                </div>
+              )}
+
+              {adminToken && (
+                <div className="md:col-span-2 bg-yellow-50 p-6 rounded-xl border border-yellow-200 mt-2">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-yellow-800 flex items-center gap-2">
+                      <FileText size={20} />
+                      Controle de Empréstimo (Visão Admin)
+                    </h3>
+                    <label className="flex items-center gap-2 text-sm font-medium text-yellow-800 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={formData.emprestimoAdmin?.ativo || false}
+                        onChange={(e) => setFormData({
+                          ...formData, 
+                          emprestimoAdmin: { ...(formData.emprestimoAdmin || initialFormData.emprestimoAdmin), ativo: e.target.checked }
+                        })}
+                        className="w-4 h-4 text-yellow-600 rounded focus:ring-yellow-500"
+                      />
+                      Ativar Controle
+                    </label>
+                  </div>
+                  
+                  {formData.emprestimoAdmin?.ativo && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-yellow-800 mb-1">Valor Solicitado</label>
+                          <input 
+                            type="text" 
+                            value={formData.emprestimoAdmin?.valorSolicitado || ''}
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              emprestimoAdmin: { ...formData.emprestimoAdmin, valorSolicitado: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-yellow-800 mb-1">Total a Pagar</label>
+                          <input 
+                            type="text" 
+                            value={formData.emprestimoAdmin?.totalPagar || ''}
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              emprestimoAdmin: { ...formData.emprestimoAdmin, totalPagar: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-yellow-800 mb-1">Prazo</label>
+                          <input 
+                            type="text" 
+                            value={formData.emprestimoAdmin?.prazo || ''}
+                            onChange={(e) => setFormData({
+                              ...formData, 
+                              emprestimoAdmin: { ...formData.emprestimoAdmin, prazo: e.target.value }
+                            })}
+                            className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="bg-yellow-100/50 p-4 rounded-lg border border-yellow-200">
+                        <p className="text-sm font-bold text-yellow-800 mb-2">Cálculo de Juros</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-yellow-800 mb-1">Taxa aplicada</label>
+                            <input 
+                              type="text" 
+                              value={formData.emprestimoAdmin?.taxaAplicada || ''}
+                              onChange={(e) => setFormData({
+                                ...formData, 
+                                emprestimoAdmin: { ...formData.emprestimoAdmin, taxaAplicada: e.target.value }
+                              })}
+                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-yellow-800 mb-1">Fórmula</label>
+                            <input 
+                              type="text" 
+                              value={formData.emprestimoAdmin?.formula || ''}
+                              onChange={(e) => setFormData({
+                                ...formData, 
+                                emprestimoAdmin: { ...formData.emprestimoAdmin, formula: e.target.value }
+                              })}
+                              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <div className="flex justify-between items-center mb-2">
+                          <label className="block text-sm font-medium text-yellow-800">Controle de Parcelas</label>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              const novasParcelas = [...(formData.emprestimoAdmin?.parcelas || []), { descricao: `Parcela ${(formData.emprestimoAdmin?.parcelas?.length || 0) + 1}`, dataVencimento: '', valor: '', paga: false }];
+                              setFormData({
+                                ...formData,
+                                emprestimoAdmin: { ...formData.emprestimoAdmin, parcelas: novasParcelas }
+                              });
+                            }}
+                            className="text-xs bg-yellow-200 hover:bg-yellow-300 text-yellow-800 px-2 py-1 rounded font-medium transition-colors"
+                          >
+                            + Adicionar Parcela
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {formData.emprestimoAdmin?.parcelas?.map((p: any, i: number) => (
+                            <div key={i} className="flex flex-wrap items-center gap-2 bg-white p-2 rounded border border-yellow-200">
+                              <input 
+                                type="checkbox" 
+                                checked={p.paga}
+                                onChange={(e) => {
+                                  const novas = [...formData.emprestimoAdmin.parcelas];
+                                  novas[i].paga = e.target.checked;
+                                  setFormData({...formData, emprestimoAdmin: {...formData.emprestimoAdmin, parcelas: novas}});
+                                }}
+                                className="w-4 h-4 text-yellow-600 rounded focus:ring-yellow-500"
+                              />
+                              <input 
+                                type="text" 
+                                placeholder="Descrição" 
+                                value={p.descricao}
+                                onChange={(e) => {
+                                  const novas = [...formData.emprestimoAdmin.parcelas];
+                                  novas[i].descricao = e.target.value;
+                                  setFormData({...formData, emprestimoAdmin: {...formData.emprestimoAdmin, parcelas: novas}});
+                                }}
+                                className="flex-1 min-w-[100px] px-2 py-1 border border-slate-200 rounded text-sm outline-none focus:border-yellow-500"
+                              />
+                              <input 
+                                type="date" 
+                                value={p.dataVencimento}
+                                onChange={(e) => {
+                                  const novas = [...formData.emprestimoAdmin.parcelas];
+                                  novas[i].dataVencimento = e.target.value;
+                                  setFormData({...formData, emprestimoAdmin: {...formData.emprestimoAdmin, parcelas: novas}});
+                                }}
+                                className="w-[130px] px-2 py-1 border border-slate-200 rounded text-sm outline-none focus:border-yellow-500"
+                              />
+                              <input 
+                                type="text" 
+                                placeholder="R$ 0,00" 
+                                value={p.valor}
+                                onChange={(e) => {
+                                  const novas = [...formData.emprestimoAdmin.parcelas];
+                                  novas[i].valor = e.target.value;
+                                  setFormData({...formData, emprestimoAdmin: {...formData.emprestimoAdmin, parcelas: novas}});
+                                }}
+                                className="w-[100px] px-2 py-1 border border-slate-200 rounded text-sm outline-none focus:border-yellow-500"
+                              />
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  const novas = formData.emprestimoAdmin.parcelas.filter((_: any, idx: number) => idx !== i);
+                                  setFormData({...formData, emprestimoAdmin: {...formData.emprestimoAdmin, parcelas: novas}});
+                                }}
+                                className="text-red-500 hover:text-red-700 p-1"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          ))}
+                          {(!formData.emprestimoAdmin?.parcelas || formData.emprestimoAdmin.parcelas.length === 0) && (
+                            <p className="text-sm text-yellow-700 italic text-center py-2">Nenhuma parcela registrada.</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
