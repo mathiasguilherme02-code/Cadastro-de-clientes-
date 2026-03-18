@@ -113,7 +113,7 @@ app.post("/api/clients/login", async (req, res) => {
     
     const data = querySnapshot.docs[0].data();
     const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
-    res.json(clientData);
+    res.json({ ...clientData, id: querySnapshot.docs[0].id });
   } catch (error) {
     console.error("Error logging in client:", error);
     res.status(500).json({ error: "Erro ao fazer login" });
@@ -158,7 +158,8 @@ app.get("/api/clients", requireAdmin, async (req, res) => {
       
     const parsedClients = querySnapshot.docs.map(doc => {
       const c = doc.data();
-      return typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
+      const dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
+      return { ...dados, id: doc.id };
     });
     res.json(parsedClients);
   } catch (error) {
