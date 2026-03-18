@@ -207,10 +207,14 @@ app.post("/api/clients", async (req, res) => {
     
     // Convert DD/MM/YYYY to YYYY-MM-DD for sorting
     let pgDate = new Date().toISOString();
-    if (client.dataCadastro && client.dataCadastro.includes('/')) {
-      const [day, month, year] = client.dataCadastro.split('/');
-      if (day && month && year) {
-        pgDate = `${year}-${month}-${day}`;
+    if (client.dataCadastro) {
+      if (client.dataCadastro.includes('/')) {
+        const [day, month, year] = client.dataCadastro.split('/');
+        if (day && month && year) {
+          pgDate = `${year}-${month}-${day}`;
+        }
+      } else if (client.dataCadastro.includes('-')) {
+        pgDate = client.dataCadastro;
       }
     }
     
@@ -256,12 +260,26 @@ app.put("/api/clients/:id", async (req, res) => {
       if (docSnap.data().cpf !== payloadCpf) {
         return res.status(403).json({ error: "Acesso negado para atualizar este cliente" });
       }
+    } else if (client.cpf) {
+      // If admin, check if the new CPF already exists for a different client
+      const formattedCpf = client.cpf.replace(/[^\d]+/g, '');
+      const q = query(collection(db, "clients"), where("cpf", "==", formattedCpf));
+      const querySnapshot = await getDocs(q);
+      
+      const existingClient = querySnapshot.docs.find(doc => doc.id !== id);
+      if (existingClient) {
+        return res.status(400).json({ error: "CPF já cadastrado para outro cliente" });
+      }
     }
     
     // Process files (upload to Firebase Storage)
     const processedClient = await processClientFiles(client);
     
-    await updateDoc(doc(db, "clients", id), { dados: processedClient });
+    const updateData: any = { dados: processedClient };
+    if (client.nomeCompleto) updateData.nomeCompleto = client.nomeCompleto;
+    if (client.cpf) updateData.cpf = client.cpf.replace(/[^\d]+/g, '');
+    
+    await updateDoc(doc(db, "clients", id), updateData);
       
     broadcastUpdate('UPDATE_CLIENTS');
     res.json({ success: true });
