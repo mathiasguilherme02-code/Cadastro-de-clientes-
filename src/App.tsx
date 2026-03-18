@@ -120,6 +120,11 @@ export default function App() {
   const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0, dataPagamento: ''});
   const [addingAbatimento, setAddingAbatimento] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
   const [newAbatimento, setNewAbatimento] = useState({ data: '', valor: '' });
+
+  const [editingParcelaAdmin, setEditingParcelaAdmin] = useState<{parcelaIndex: number} | null>(null);
+  const [editParcelaDataAdmin, setEditParcelaDataAdmin] = useState({ dataVencimento: '', valor: 0, dataPagamento: '' });
+  const [addingAbatimentoAdmin, setAddingAbatimentoAdmin] = useState<{parcelaIndex: number} | null>(null);
+  const [newAbatimentoAdmin, setNewAbatimentoAdmin] = useState({ data: '', valor: '' });
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
@@ -1639,6 +1644,94 @@ export default function App() {
     setClients(updatedClients);
   };
 
+  const handleAddAbatimentoAdmin = async (parcelaIndex: number) => {
+    if (!newAbatimentoAdmin.data || !newAbatimentoAdmin.valor) {
+      alert('Preencha a data e o valor do abatimento.');
+      return;
+    }
+
+    const valorNum = parseFloat(newAbatimentoAdmin.valor);
+    if (isNaN(valorNum) || valorNum <= 0) {
+      alert('Valor inválido.');
+      return;
+    }
+
+    const updatedClients = clients.map(c => {
+      if (c.id === selectedClient.id) {
+        const updatedEmprestimoAdmin = { ...c.emprestimoAdmin };
+        const novasParcelas = [...(updatedEmprestimoAdmin.parcelas || [])];
+        
+        const abatimentos = novasParcelas[parcelaIndex].abatimentos || [];
+        
+        novasParcelas[parcelaIndex] = {
+          ...novasParcelas[parcelaIndex],
+          abatimentos: [...abatimentos, { data: newAbatimentoAdmin.data, valor: valorNum }]
+        };
+        
+        updatedEmprestimoAdmin.parcelas = novasParcelas;
+        
+        const updatedClient = { ...c, emprestimoAdmin: updatedEmprestimoAdmin };
+        
+        // Save to API
+        fetch(`/api/clients/${c.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(updatedClient)
+        }).catch(err => console.error("Erro ao salvar abatimento admin:", err));
+
+        setSelectedClient(updatedClient);
+        return updatedClient;
+      }
+      return c;
+    });
+    
+    setClients(updatedClients);
+    setAddingAbatimentoAdmin(null);
+    setNewAbatimentoAdmin({ data: '', valor: '' });
+  };
+
+  const handleRemoveAbatimentoAdmin = async (parcelaIndex: number, abatimentoIndex: number) => {
+    if (!confirm('Tem certeza que deseja remover este abatimento?')) return;
+
+    const updatedClients = clients.map(c => {
+      if (c.id === selectedClient.id) {
+        const updatedEmprestimoAdmin = { ...c.emprestimoAdmin };
+        const novasParcelas = [...(updatedEmprestimoAdmin.parcelas || [])];
+        
+        const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
+        abatimentos.splice(abatimentoIndex, 1);
+        
+        novasParcelas[parcelaIndex] = {
+          ...novasParcelas[parcelaIndex],
+          abatimentos
+        };
+        
+        updatedEmprestimoAdmin.parcelas = novasParcelas;
+        
+        const updatedClient = { ...c, emprestimoAdmin: updatedEmprestimoAdmin };
+        
+        // Save to API
+        fetch(`/api/clients/${c.id}`, {
+          method: 'PUT',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${adminToken}`
+          },
+          body: JSON.stringify(updatedClient)
+        }).catch(err => console.error("Erro ao remover abatimento admin:", err));
+
+        setSelectedClient(updatedClient);
+        return updatedClient;
+      }
+      return c;
+    });
+    
+    setClients(updatedClients);
+  };
+
   const handleDeleteClient = async (id: string) => {
     try {
       const res = await fetch(`/api/clients/${id}`, {
@@ -2685,21 +2778,344 @@ export default function App() {
                         <div>
                           <p className="text-sm font-bold text-yellow-800 mb-2">Controle de Parcelas</p>
                           {selectedClient.emprestimoAdmin.parcelas && selectedClient.emprestimoAdmin.parcelas.length > 0 ? (
-                            <div className="space-y-2">
-                              {selectedClient.emprestimoAdmin.parcelas.map((p: any, i: number) => (
-                                <div key={i} className={`flex flex-wrap items-center justify-between p-2 rounded border ${p.paga ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-yellow-200'}`}>
-                                  <div className="flex items-center gap-2">
-                                    <div className={`w-4 h-4 rounded-full flex items-center justify-center ${p.paga ? 'bg-emerald-500 text-white' : 'border border-yellow-400'}`}>
-                                      {p.paga && <Check size={12} />}
+                            <div className="space-y-4">
+                              {selectedClient.emprestimoAdmin.parcelas.map((p: any, i: number) => {
+                                const vencimento = new Date(p.dataVencimento);
+                                vencimento.setHours(23, 59, 59, 999);
+                                const hoje = new Date();
+                                hoje.setHours(0, 0, 0, 0);
+                                
+                                const isVencida = !p.paga && vencimento < hoje;
+                                const isVencendoHoje = !p.paga && vencimento.toDateString() === hoje.toDateString();
+                                
+                                let diasAtraso = 0;
+                                let valorAtualizado = p.valor;
+                                
+                                const abatimentosTotal = (p.abatimentos || []).reduce((acc: number, curr: any) => acc + curr.valor, 0);
+                                
+                                if (isVencida) {
+                                  let dataBase = hoje;
+                                  if (p.jurosCongelados && p.dataCongelamento) {
+                                    const congelamentoDate = new Date(p.dataCongelamento);
+                                    congelamentoDate.setHours(23, 59, 59, 999);
+                                    if (congelamentoDate < hoje) {
+                                      dataBase = congelamentoDate;
+                                    }
+                                  }
+                                  const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+                                  diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                  const taxaDia = parseFloat(adminSettings.taxaAtrasoDia) || 1;
+                                  valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+                                }
+                                
+                                valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
+
+                                const isEditing = editingParcelaAdmin?.parcelaIndex === i;
+
+                                return (
+                                  <div key={i} className={`border rounded-lg p-4 ${isVencida ? 'border-red-300 bg-red-50' : p.paga ? 'border-emerald-200 bg-emerald-50' : isVencendoHoje ? 'border-yellow-400 bg-yellow-50' : 'border-slate-200 bg-white'}`}>
+                                    <div className="flex justify-between items-center mb-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-semibold text-slate-800">{p.descricao || `Parcela ${i + 1}`}</span>
+                                        {!isEditing && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingParcelaAdmin({ parcelaIndex: i });
+                                              setEditParcelaDataAdmin({ 
+                                                dataVencimento: p.dataVencimento, 
+                                                valor: p.valor,
+                                                dataPagamento: p.dataPagamento ? p.dataPagamento.split('T')[0] : ''
+                                              });
+                                            }}
+                                            className="text-slate-400 hover:text-yellow-600 transition-colors ml-2"
+                                            title="Editar Parcela"
+                                          >
+                                            <Edit2 size={14} />
+                                          </button>
+                                        )}
+                                        {isVencendoHoje && (
+                                          <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded animate-pulse">
+                                            VENCE HOJE
+                                          </span>
+                                        )}
+                                      </div>
+                                      <label className="flex items-center gap-2 cursor-pointer">
+                                        <input 
+                                          type="checkbox" 
+                                          checked={p.paga} 
+                                          onChange={async () => {
+                                            const updatedClients = clients.map(c => {
+                                              if (c.id === selectedClient.id) {
+                                                const updatedEmprestimoAdmin = { ...c.emprestimoAdmin };
+                                                const novasParcelas = [...(updatedEmprestimoAdmin.parcelas || [])];
+                                                const isNowPaid = !novasParcelas[i].paga;
+                                                novasParcelas[i] = { 
+                                                  ...novasParcelas[i], 
+                                                  paga: isNowPaid,
+                                                  status: isNowPaid ? 'pago' : 'pendente',
+                                                  dataPagamento: isNowPaid ? getLocalISODateTime() : null
+                                                };
+                                                if (isNowPaid && isVencida) {
+                                                  novasParcelas[i].valor = valorAtualizado;
+                                                }
+                                                updatedEmprestimoAdmin.parcelas = novasParcelas;
+                                                
+                                                const updatedClient = {
+                                                  ...c,
+                                                  emprestimoAdmin: updatedEmprestimoAdmin
+                                                };
+                                                
+                                                // Save to API
+                                                fetch(`/api/clients/${c.id}`, {
+                                                  method: 'PUT',
+                                                  headers: { 
+                                                    'Content-Type': 'application/json',
+                                                    'Authorization': `Bearer ${adminToken}`
+                                                  },
+                                                  body: JSON.stringify(updatedClient)
+                                                })
+                                                .then(res => {
+                                                  if (!res.ok) {
+                                                    alert('Erro ao atualizar status da parcela no banco de dados.');
+                                                  }
+                                                })
+                                                .catch(err => console.error("Erro ao atualizar cliente:", err));
+
+                                                setSelectedClient(updatedClient);
+                                                return updatedClient;
+                                              }
+                                              return c;
+                                            });
+                                            setClients(updatedClients);
+                                          }}
+                                          className="w-5 h-5 text-yellow-500 rounded focus:ring-yellow-500"
+                                        />
+                                        <span className={p.paga ? "text-emerald-600 font-medium" : "text-slate-500"}>
+                                          {p.paga ? "Paga" : "Pendente"}
+                                        </span>
+                                      </label>
                                     </div>
-                                    <span className={`text-sm font-medium ${p.paga ? 'text-emerald-700' : 'text-yellow-900'}`}>{p.descricao || `Parcela ${i + 1}`}</span>
+
+                                    {isEditing ? (
+                                      <div className="grid grid-cols-2 gap-2 mt-3 p-3 bg-slate-50 rounded border border-slate-200">
+                                        <div>
+                                          <label className="block text-xs text-slate-500 mb-1">Data de Vencimento</label>
+                                          <input
+                                            type="date"
+                                            value={editParcelaDataAdmin.dataVencimento}
+                                            onChange={(e) => setEditParcelaDataAdmin({ ...editParcelaDataAdmin, dataVencimento: e.target.value })}
+                                            className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-yellow-500 outline-none"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="block text-xs text-slate-500 mb-1">Valor Original</label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editParcelaDataAdmin.valor}
+                                            onChange={(e) => setEditParcelaDataAdmin({ ...editParcelaDataAdmin, valor: parseFloat(e.target.value) || 0 })}
+                                            className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-yellow-500 outline-none"
+                                          />
+                                        </div>
+                                        {p.paga && (
+                                          <div className="col-span-2">
+                                            <label className="block text-xs text-slate-500 mb-1">Data de Pagamento</label>
+                                            <input
+                                              type="date"
+                                              value={editParcelaDataAdmin.dataPagamento}
+                                              onChange={(e) => setEditParcelaDataAdmin({ ...editParcelaDataAdmin, dataPagamento: e.target.value })}
+                                              className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-1 focus:ring-yellow-500 outline-none"
+                                            />
+                                          </div>
+                                        )}
+                                        <div className="col-span-2 flex justify-end gap-2 mt-2">
+                                          <button
+                                            onClick={() => setEditingParcelaAdmin(null)}
+                                            className="px-3 py-1 text-xs font-medium text-slate-600 bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                                          >
+                                            Cancelar
+                                          </button>
+                                          <button
+                                            onClick={async () => {
+                                              const updatedClients = clients.map(c => {
+                                                if (c.id === selectedClient.id) {
+                                                  const updatedEmprestimoAdmin = { ...c.emprestimoAdmin };
+                                                  const novasParcelas = [...(updatedEmprestimoAdmin.parcelas || [])];
+                                                  novasParcelas[i] = { 
+                                                    ...novasParcelas[i], 
+                                                    dataVencimento: editParcelaDataAdmin.dataVencimento, 
+                                                    valor: editParcelaDataAdmin.valor,
+                                                    ...(p.paga && editParcelaDataAdmin.dataPagamento ? { dataPagamento: editParcelaDataAdmin.dataPagamento + 'T12:00:00.000Z' } : {})
+                                                  };
+                                                  updatedEmprestimoAdmin.parcelas = novasParcelas;
+                                                  
+                                                  const updatedClient = {
+                                                    ...c,
+                                                    emprestimoAdmin: updatedEmprestimoAdmin
+                                                  };
+                                                  
+                                                  // Save to API
+                                                  fetch(`/api/clients/${c.id}`, {
+                                                    method: 'PUT',
+                                                    headers: { 
+                                                      'Content-Type': 'application/json',
+                                                      'Authorization': `Bearer ${adminToken}`
+                                                    },
+                                                    body: JSON.stringify(updatedClient)
+                                                  })
+                                                  .then(res => {
+                                                    if (res.ok) {
+                                                      alert('Parcela atualizada com sucesso!');
+                                                    } else {
+                                                      alert('Erro ao atualizar parcela no banco de dados.');
+                                                    }
+                                                  })
+                                                  .catch(err => {
+                                                    console.error("Erro ao atualizar cliente:", err);
+                                                    alert('Erro de conexão ao atualizar parcela.');
+                                                  });
+
+                                                  setSelectedClient(updatedClient);
+                                                  return updatedClient;
+                                                }
+                                                return c;
+                                              });
+                                              setClients(updatedClients);
+                                              setEditingParcelaAdmin(null);
+                                            }}
+                                            className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-yellow-500 hover:bg-yellow-600 rounded transition-colors"
+                                          >
+                                            <Save size={12} />
+                                            Salvar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="grid grid-cols-2 gap-2 text-sm">
+                                        <div>
+                                          <span className="text-slate-500">Vencimento:</span> {formatDate(p.dataVencimento)}
+                                        </div>
+                                        <div>
+                                          <span className="text-slate-500">Valor:</span> {formatCurrency(p.valor)}
+                                        </div>
+                                        {p.paga && p.dataPagamento && (
+                                          <div className="col-span-2 text-emerald-600 font-medium">
+                                            <span className="text-slate-500">Pago em:</span> {formatDate(p.dataPagamento.split('T')[0])}
+                                          </div>
+                                        )}
+                                        {!p.paga && isVencida && (
+                                          <div className="col-span-2 mt-2 p-2 bg-red-100 rounded text-red-800">
+                                            <div className="flex justify-between items-center mb-1">
+                                              <span className="font-semibold">Atraso:</span>
+                                              <span>{diasAtraso} dias</span>
+                                            </div>
+                                            <div className="flex justify-between items-center font-bold">
+                                              <span>Valor Atualizado:</span>
+                                              <span>{formatCurrency(valorAtualizado)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {!p.paga && !isVencida && abatimentosTotal > 0 && (
+                                          <div className="col-span-2 mt-2 p-2 bg-slate-100 rounded text-slate-800">
+                                            <div className="flex justify-between items-center font-bold">
+                                              <span>Valor Restante:</span>
+                                              <span>{formatCurrency(valorAtualizado)}</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    {/* Abatimentos Section */}
+                                    <div className="mt-4 pt-4 border-t border-slate-200">
+                                      <div className="flex justify-between items-center mb-2">
+                                        <h4 className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Abatimentos</h4>
+                                        {!p.paga && (
+                                          <button
+                                            onClick={() => setAddingAbatimentoAdmin({ parcelaIndex: i })}
+                                            className="text-xs flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium"
+                                          >
+                                            <Plus size={12} /> Adicionar
+                                          </button>
+                                        )}
+                                      </div>
+
+                                      {p.abatimentos && p.abatimentos.length > 0 ? (
+                                        <div className="space-y-2 mb-3">
+                                          {p.abatimentos.map((ab: any, abIndex: number) => (
+                                            <div key={abIndex} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded border border-slate-100">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-slate-500">{formatDate(ab.data)}</span>
+                                                <span className="font-medium text-emerald-600">{formatCurrency(ab.valor)}</span>
+                                              </div>
+                                              {!p.paga && (
+                                                <button
+                                                  onClick={() => handleRemoveAbatimentoAdmin(i, abIndex)}
+                                                  className="text-red-400 hover:text-red-600 transition-colors"
+                                                  title="Remover abatimento"
+                                                >
+                                                  <Trash2 size={14} />
+                                                </button>
+                                              )}
+                                            </div>
+                                          ))}
+                                          <div className="flex justify-between items-center text-sm font-semibold text-slate-700 px-2 pt-1">
+                                            <span>Total Abatido:</span>
+                                            <span className="text-emerald-600">{formatCurrency(abatimentosTotal)}</span>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-slate-400 italic mb-3">Nenhum abatimento registrado.</p>
+                                      )}
+
+                                      {addingAbatimentoAdmin?.parcelaIndex === i && (
+                                        <div className="bg-indigo-50 p-3 rounded border border-indigo-100 mt-2">
+                                          <h5 className="text-xs font-semibold text-indigo-800 mb-2">Novo Abatimento</h5>
+                                          <div className="grid grid-cols-2 gap-2 mb-2">
+                                            <div>
+                                              <label className="block text-xs text-indigo-600 mb-1">Data</label>
+                                              <input
+                                                type="date"
+                                                value={newAbatimentoAdmin.data}
+                                                onChange={(e) => setNewAbatimentoAdmin({ ...newAbatimentoAdmin, data: e.target.value })}
+                                                className="w-full px-2 py-1 text-sm border border-indigo-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="block text-xs text-indigo-600 mb-1">Valor</label>
+                                              <input
+                                                type="number"
+                                                step="0.01"
+                                                value={newAbatimentoAdmin.valor}
+                                                onChange={(e) => setNewAbatimentoAdmin({ ...newAbatimentoAdmin, valor: e.target.value })}
+                                                className="w-full px-2 py-1 text-sm border border-indigo-200 rounded focus:ring-1 focus:ring-indigo-500 outline-none"
+                                                placeholder="0.00"
+                                              />
+                                            </div>
+                                          </div>
+                                          <div className="flex justify-end gap-2">
+                                            <button
+                                              onClick={() => {
+                                                setAddingAbatimentoAdmin(null);
+                                                setNewAbatimentoAdmin({ data: '', valor: '' });
+                                              }}
+                                              className="px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-200 rounded transition-colors"
+                                            >
+                                              Cancelar
+                                            </button>
+                                            <button
+                                              onClick={() => handleAddAbatimentoAdmin(i)}
+                                              className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors"
+                                            >
+                                              <Save size={12} /> Salvar
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-xs text-slate-500">{p.dataVencimento ? new Date(p.dataVencimento).toLocaleDateString('pt-BR') : 'Sem data'}</span>
-                                    <span className={`text-sm font-bold ${p.paga ? 'text-emerald-700' : 'text-yellow-900'}`}>{p.valor || 'R$ 0,00'}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <p className="text-sm text-yellow-700 italic">Nenhuma parcela registrada.</p>
