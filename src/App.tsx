@@ -117,7 +117,8 @@ export default function App() {
 
   const [adminSettings, setAdminSettings] = useState({
     taxaJuros: '1',
-    taxaAtrasoDia: '8'
+    taxaAtrasoDia: '8',
+    tipoTaxa: 'diaria'
   });
 
   const [simulacao, setSimulacao] = useState({
@@ -126,10 +127,11 @@ export default function App() {
     quantidade: '1',
     taxaJuros: '1',
     taxaAtrasoDia: '1',
+    tipoTaxa: 'diaria',
     dataVencimentoUnica: '',
     parcelas: [] as any[],
     isRenegociacao: false,
-    renegociadoFromSimIndex: undefined as number | undefined
+    renegociadoFromSimIndices: [] as number[]
   });
   const [editingSimIndex, setEditingSimIndex] = useState<number | null>(null);
   const [editSimData, setEditSimData] = useState({
@@ -138,6 +140,7 @@ export default function App() {
     quantidade: '1',
     taxaJuros: '1',
     taxaAtrasoDia: '1',
+    tipoTaxa: 'diaria',
     dataInicial: getLocalISODate(),
     dataVencimentoUnica: ''
   });
@@ -474,6 +477,7 @@ export default function App() {
 
     const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
     const taxa = parseFloat(adminSettings.taxaJuros) || 1;
+    const isMensal = adminSettings.tipoTaxa === 'mensal';
     
     let diasTotais = 30;
     let dataAtual = new Date();
@@ -494,7 +498,8 @@ export default function App() {
       diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     }
 
-    const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
+    const fatorTempo = isMensal ? (diasTotais / 30) : diasTotais;
+    const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
@@ -525,6 +530,7 @@ export default function App() {
       ...prev, 
       taxaJuros: adminSettings.taxaJuros,
       taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+      tipoTaxa: adminSettings.tipoTaxa || 'diaria',
       parcelas: novasParcelas 
     }));
   };
@@ -809,43 +815,58 @@ export default function App() {
   }
 };
 
-  const handleRenegociar = (simIndex: number) => {
+  const handleRenegociar = () => {
     if (!selectedClient) return;
-    const sim = selectedClient.simulacoes[simIndex];
     
     let totalOwed = 0;
     const hoje = new Date();
     hoje.setHours(0,0,0,0);
     
-    sim.parcelas.forEach((p: any) => {
-      if (!p.paga) {
-        const vencimento = parseLocalDate(p.dataVencimento);
-        vencimento.setHours(0,0,0,0);
-        const isVencida = vencimento < hoje;
-        let valorAtualizado = p.valor;
-        const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+    const activeLoanIndices: number[] = [];
+    const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+    
+    clientSimulacoes.forEach((sim: any, index: number) => {
+      if (sim.status === 'aprovado' || !sim.status) {
+        let simTotalOwed = 0;
+        let hasUnpaid = false;
         
-        if (isVencida) {
-          let dataBase = hoje;
-          if (p.jurosCongelados && p.dataCongelamento) {
-            const dataCongelamento = parseLocalDate(p.dataCongelamento);
-            dataCongelamento.setHours(0,0,0,0);
-            if (dataCongelamento < hoje) {
-              dataBase = dataCongelamento;
+        sim.parcelas.forEach((p: any) => {
+          if (!p.paga) {
+            hasUnpaid = true;
+            const vencimento = parseLocalDate(p.dataVencimento);
+            vencimento.setHours(0,0,0,0);
+            const isVencida = vencimento < hoje;
+            let valorAtualizado = p.valor;
+            const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+            
+            if (isVencida) {
+              let dataBase = hoje;
+              if (p.jurosCongelados && p.dataCongelamento) {
+                const dataCongelamento = parseLocalDate(p.dataCongelamento);
+                dataCongelamento.setHours(0,0,0,0);
+                if (dataCongelamento < hoje) {
+                  dataBase = dataCongelamento;
+                }
+              }
+              const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+              const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const taxaDia = parseFloat(sim.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
+              valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
             }
+            valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
+            simTotalOwed += valorAtualizado;
           }
-          const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
-          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          const taxaDia = parseFloat(sim.taxaAtrasoDia) || 1;
-          valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+        });
+        
+        if (hasUnpaid && simTotalOwed > 0) {
+          totalOwed += simTotalOwed;
+          activeLoanIndices.push(index);
         }
-        valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
-        totalOwed += valorAtualizado;
       }
     });
 
     if (totalOwed <= 0) {
-      alert('Não há saldo devedor para renegociar neste empréstimo.');
+      alert('Não há saldo devedor para renegociar.');
       return;
     }
 
@@ -856,11 +877,12 @@ export default function App() {
       dataVencimentoUnica: '',
       taxaJuros: adminSettings.taxaJuros,
       taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+      tipoTaxa: adminSettings.tipoTaxa || 'diaria',
       parcelas: [],
       valorTotal: 0,
       valorParcela: 0,
       isRenegociacao: true,
-      renegociadoFromSimIndex: simIndex
+      renegociadoFromSimIndices: activeLoanIndices
     });
     setView('simulation');
   };
@@ -886,16 +908,18 @@ export default function App() {
     const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
     
-    if (simulacao.isRenegociacao && simulacao.renegociadoFromSimIndex !== undefined) {
-      const oldSimIndex = simulacao.renegociadoFromSimIndex + 1;
-      if (updatedSimulacoes[oldSimIndex]) {
-        updatedSimulacoes[oldSimIndex] = {
-          ...updatedSimulacoes[oldSimIndex],
-          status: 'renegociado',
-          arquivado: true,
-          anotacoes: (updatedSimulacoes[oldSimIndex].anotacoes || '') + `\n[${getLocalISODateTime()}] Renegociado para um novo empréstimo.`
-        };
-      }
+    if (simulacao.isRenegociacao && simulacao.renegociadoFromSimIndices && simulacao.renegociadoFromSimIndices.length > 0) {
+      simulacao.renegociadoFromSimIndices.forEach(oldIndex => {
+        const adjustedIndex = oldIndex + 1;
+        if (updatedSimulacoes[adjustedIndex]) {
+          updatedSimulacoes[adjustedIndex] = {
+            ...updatedSimulacoes[adjustedIndex],
+            status: 'renegociado',
+            arquivado: true,
+            anotacoes: (updatedSimulacoes[adjustedIndex].anotacoes || '') + `\n[${getLocalISODateTime()}] Renegociado para um novo empréstimo.`
+          };
+        }
+      });
     }
     
     const updatedClient = {
@@ -1355,8 +1379,10 @@ export default function App() {
                     parcelas: [],
                     taxaJuros: adminSettings.taxaJuros,
                     taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+                    tipoTaxa: adminSettings.tipoTaxa || 'diaria',
                     dataVencimentoUnica: '',
-                    isRenegociacao: false
+                    isRenegociacao: false,
+                    renegociadoFromSimIndices: []
                   });
                   setView('simulation');
                 }}
@@ -2175,6 +2201,7 @@ export default function App() {
       quantidade: sim.quantidade || '1',
       taxaJuros: sim.taxaJuros || adminSettings.taxaJuros,
       taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
+      tipoTaxa: sim.tipoTaxa || adminSettings.tipoTaxa || 'diaria',
       dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate(),
       dataVencimentoUnica: sim.prazo === 'única' && sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split('T')[0] : ''
     });
@@ -2195,6 +2222,7 @@ export default function App() {
 
     const qtd = editSimData.prazo === 'única' ? 1 : parseInt(editSimData.quantidade) || 1;
     const taxa = parseFloat(editSimData.taxaJuros) || 1;
+    const isMensal = editSimData.tipoTaxa === 'mensal';
     
     let diasTotais = 30;
     let dataAtual = editSimData.dataInicial ? parseLocalDate(editSimData.dataInicial) : new Date();
@@ -2215,7 +2243,8 @@ export default function App() {
       diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
     }
 
-    const valorTotal = valor + (valor * (taxa / 100) * diasTotais);
+    const fatorTempo = isMensal ? (diasTotais / 30) : diasTotais;
+    const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
     const valorParcela = valorTotal / qtd;
 
     const novasParcelas = [];
@@ -2483,9 +2512,22 @@ export default function App() {
                   Copiar Link do Cliente
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Dia (%)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Taxa Padrão</label>
+                  <select
+                    value={adminSettings.tipoTaxa || 'diaria'}
+                    onChange={(e) => setAdminSettings({...adminSettings, tipoTaxa: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                  >
+                    <option value="diaria">Diária</option>
+                    <option value="mensal">Mensal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {adminSettings.tipoTaxa === 'mensal' ? 'Taxa de Juros ao Mês (%)' : 'Taxa de Juros ao Dia (%)'}
+                  </label>
                   <input 
                     type="number" 
                     value={adminSettings.taxaJuros} 
@@ -2556,8 +2598,10 @@ export default function App() {
                         parcelas: [],
                         taxaJuros: adminSettings.taxaJuros,
                         taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+                        tipoTaxa: adminSettings.tipoTaxa || 'diaria',
                         dataVencimentoUnica: '',
-                        isRenegociacao: false
+                        isRenegociacao: false,
+                        renegociadoFromSimIndices: []
                       });
                       setView('simulation');
                     }}
@@ -2757,7 +2801,7 @@ export default function App() {
                               </svg>
                             </button>
                             <button
-                              onClick={() => handleRenegociar(simIndex)}
+                              onClick={() => handleRenegociar()}
                               className="ml-2 text-blue-500 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                               title="Renegociar Empréstimo"
                             >
@@ -2830,7 +2874,20 @@ export default function App() {
                                 </div>
                               )}
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Dia (%)</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Taxa</label>
+                                <select
+                                  value={editSimData.tipoTaxa || 'diaria'}
+                                  onChange={(e) => setEditSimData({...editSimData, tipoTaxa: e.target.value})}
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                >
+                                  <option value="diaria">Diária</option>
+                                  <option value="mensal">Mensal</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">
+                                  {editSimData.tipoTaxa === 'mensal' ? 'Taxa de Juros ao Mês (%)' : 'Taxa de Juros ao Dia (%)'}
+                                </label>
                                 <input
                                   type="number"
                                   value={editSimData.taxaJuros}
@@ -2880,8 +2937,8 @@ export default function App() {
                               </div>
                               <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 print:hidden">
                                 <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
-                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao dia</p>
-                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * Dias Totais)</p>
+                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao {sim.tipoTaxa === 'mensal' ? 'mês' : 'dia'}</p>
+                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * {sim.tipoTaxa === 'mensal' ? '(Dias Totais / 30)' : 'Dias Totais'})</p>
                               </div>
                             </div>
 
