@@ -37,8 +37,7 @@ const initialFormData = {
   atividadeFinanceiraEstado: '',
   observacoes: '',
   observacoesAdmin: '',
-  statusManual: 'automatico',
-  documentos: null as FileList | null
+  statusManual: 'automatico'
 };
 
 const getLocalISODate = (date = new Date()) => {
@@ -72,6 +71,16 @@ const parseLocalDate = (dateString: string) => {
   }
   return new Date(dateString);
 };
+
+const documentCategories = [
+  { id: 'docFrente', label: 'CNH e/ou RG (Frente)', required: true },
+  { id: 'docVerso', label: 'CNH e/ou RG (Verso)', required: true },
+  { id: 'comprovante', label: 'Comprovante de Residência', required: true },
+  { id: 'selfie', label: 'Selfie com Documento', required: true },
+  { id: 'penhora', label: 'Penhora', required: true },
+  { id: 'reserva1', label: 'Anexo Reserva 1', required: false },
+  { id: 'reserva2', label: 'Anexo Reserva 2', required: false },
+];
 
 export default function App() {
   const [view, setView] = useState<'welcome' | 'simulation' | 'form' | 'admin_login' | 'admin' | 'client_login' | 'client_dashboard'>(() => {
@@ -198,6 +207,7 @@ export default function App() {
   }, []);
 
   const [formData, setFormData] = useState(initialFormData);
+  const [categorizedFiles, setCategorizedFiles] = useState<Record<string, File>>({});
 
   const [loadingCep, setLoadingCep] = useState(false);
   const [loadingParenteCep, setLoadingParenteCep] = useState(false);
@@ -567,22 +577,15 @@ export default function App() {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      if (e.target.files.length < 5) {
-        alert("Por favor, anexe no mínimo 5 arquivos (CNH e/ou RG, comprovante de residência, selfie com o documento do lado do rosto, penhora).");
-        setFormData(prev => ({ ...prev, documentos: null }));
-        e.target.value = ''; // Reset the input
-      } else if (e.target.files.length > 10) {
-        alert("Você pode anexar no máximo 10 arquivos.");
-        const dt = new DataTransfer();
-        for (let i = 0; i < 10; i++) {
-          dt.items.add(e.target.files[i]);
-        }
-        setFormData(prev => ({ ...prev, documentos: dt.files }));
-      } else {
-        setFormData(prev => ({ ...prev, documentos: e.target.files }));
+  const handleCategorizedFileChange = (categoryId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      if (file.size > 10 * 1024 * 1024) {
+        alert(`O arquivo ${file.name} é muito grande. O tamanho máximo é 10MB.`);
+        e.target.value = '';
+        return;
       }
+      setCategorizedFiles(prev => ({ ...prev, [categoryId]: file }));
     }
   };
 
@@ -645,19 +648,24 @@ export default function App() {
       return;
     }
 
-    if (!isEditingClientData && (!formData.documentos || formData.documentos.length < 5)) {
-      alert('Por favor, anexe no mínimo 5 arquivos (CNH e/ou RG, comprovante de residência, selfie com o documento do lado do rosto, penhora).');
-      return;
+    if (!isEditingClientData) {
+      const missingRequired = documentCategories.filter(cat => cat.required && !categorizedFiles[cat.id]);
+      if (missingRequired.length > 0) {
+        alert(`Por favor, envie os seguintes anexos obrigatórios:\n${missingRequired.map(c => `- ${c.label}`).join('\n')}`);
+        return;
+      }
     }
     
     setIsSubmitting(true);
     try {
       // Convert files to base64 for database storage
-      const fileUrls: { name: string, url: string, type: string }[] = [];
-    if (formData.documentos) {
+      const fileUrls: { name: string, url: string, type: string, categoria?: string }[] = [];
+      const filesToProcess = Object.entries(categorizedFiles);
+      
+    if (filesToProcess.length > 0) {
       let totalSize = 0;
-      for (let i = 0; i < formData.documentos.length; i++) {
-        totalSize += formData.documentos[i].size;
+      for (let i = 0; i < filesToProcess.length; i++) {
+        totalSize += filesToProcess[i][1].size;
       }
       if (totalSize > 20 * 1024 * 1024) {
         alert("O tamanho total dos arquivos excede o limite de 20MB. Por favor, envie arquivos menores ou em menor quantidade.");
@@ -665,8 +673,9 @@ export default function App() {
         return;
       }
 
-      for (let i = 0; i < formData.documentos.length; i++) {
-        const file = formData.documentos[i];
+      for (let i = 0; i < filesToProcess.length; i++) {
+        const [categoryId, file] = filesToProcess[i];
+        const categoryLabel = documentCategories.find(c => c.id === categoryId)?.label || 'Outro';
         
         // Limit file size to 10MB
         if (file.size > 10 * 1024 * 1024) {
@@ -732,7 +741,8 @@ export default function App() {
         fileUrls.push({
           name: file.name,
           type: file.type,
-          url: base64
+          url: base64,
+          categoria: categoryLabel
         });
       }
     }
@@ -803,6 +813,7 @@ export default function App() {
       
       // Reset form
       setFormData(initialFormData);
+      setCategorizedFiles({});
     } catch (error: any) {
       console.error("Erro ao salvar cliente:", error);
       alert(`Ocorreu um erro de conexão ao salvar o cadastro. Verifique sua internet ou tente novamente.`);
@@ -2467,6 +2478,7 @@ export default function App() {
                   setView('form'); 
                   setSelectedClient(null); 
                   setFormData(initialFormData);
+                  setCategorizedFiles({});
                 }}
                 className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm font-medium"
               >
@@ -2639,6 +2651,7 @@ export default function App() {
                   <button 
                     onClick={() => {
                       setFormData(selectedClient);
+                      setCategorizedFiles({});
                       setIsEditingClientData(true);
                       setView('form');
                     }}
@@ -2720,6 +2733,11 @@ export default function App() {
                             <div className="w-full h-32 bg-slate-100 flex items-center justify-center rounded-lg mb-3">
                               <FileText size={48} className="text-slate-400" />
                             </div>
+                          )}
+                          {file.categoria && (
+                            <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full mb-2">
+                              {file.categoria}
+                            </span>
                           )}
                           <p className="text-sm font-medium text-slate-700 truncate w-full text-center" title={file.name}>{file.name}</p>
                           <a 
@@ -4196,6 +4214,7 @@ export default function App() {
               setView('form');
               setSelectedClient(null);
               setFormData(initialFormData);
+              setCategorizedFiles({});
             }}
             className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm text-sm font-semibold"
           >
@@ -4743,6 +4762,11 @@ export default function App() {
                           <FileText size={48} className="text-slate-400" />
                         </div>
                       )}
+                      {file.categoria && (
+                        <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2.5 py-0.5 rounded-full mb-2">
+                          {file.categoria}
+                        </span>
+                      )}
                       <p className="text-sm text-slate-600 text-center truncate w-full" title={file.name}>{file.name}</p>
                     </div>
                   ))}
@@ -4750,21 +4774,39 @@ export default function App() {
               </div>
             )}
 
-            <div className="bg-yellow-50 border-2 border-dashed border-yellow-300 rounded-xl p-8 text-center hover:bg-yellow-100 transition-colors cursor-pointer relative">
-              <input type="file" multiple onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" required={!isEditingClientData} />
-              <div className="flex flex-col items-center justify-center space-y-3">
-                <UploadCloud className="text-yellow-500" size={48} />
-                <div className="text-slate-700 font-medium">Clique para fazer upload ou arraste os arquivos (mín. 5, máx. 10)</div>
-                <div className="text-sm text-slate-500 max-w-md mx-auto">
-                  Obrigatório: CNH e/ou RG, comprovante de residência, selfie com o documento do lado do rosto, penhora. Anexe entre 5 e 10 arquivos.
-                </div>
-                {formData.documentos && formData.documentos.length > 0 && (
-                  <div className="mt-4 flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-full text-sm font-medium">
-                    <CheckCircle2 size={16} />
-                    {formData.documentos.length} arquivo(s) selecionado(s)
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {documentCategories.map((category) => (
+                <div key={category.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col items-center text-center relative hover:bg-slate-100 transition-colors">
+                  <div className="mb-2">
+                    <span className="font-medium text-slate-800">{category.label}</span>
+                    {category.required && <span className="text-red-500 ml-1" title="Obrigatório">*</span>}
                   </div>
-                )}
-              </div>
+                  
+                  <div className="w-full relative mt-2">
+                    <input 
+                      type="file" 
+                      onChange={(e) => handleCategorizedFileChange(category.id, e)} 
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                      accept="image/*,.pdf"
+                    />
+                    <div className={`w-full py-6 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors ${categorizedFiles[category.id] ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-white group-hover:border-yellow-400'}`}>
+                      {categorizedFiles[category.id] ? (
+                        <>
+                          <CheckCircle2 className="text-emerald-500 mb-2" size={24} />
+                          <span className="text-sm text-emerald-700 font-medium truncate w-full px-2" title={categorizedFiles[category.id].name}>
+                            {categorizedFiles[category.id].name}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="text-slate-400 mb-2" size={24} />
+                          <span className="text-sm text-slate-500">Clique para anexar</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
