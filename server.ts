@@ -139,8 +139,8 @@ app.get("/api/settings", async (req, res) => {
 // Update Admin Settings (Protected)
 app.put("/api/settings", requireAdmin, async (req, res) => {
   try {
-    const { taxaJuros, taxaAtrasoDia } = req.body;
-    await setDoc(doc(db, "admin_settings", "1"), { taxaJuros, taxaAtrasoDia }, { merge: true });
+    const { taxaJuros, taxaAtrasoDia, tipoTaxa } = req.body;
+    await setDoc(doc(db, "admin_settings", "1"), { taxaJuros, taxaAtrasoDia, tipoTaxa }, { merge: true });
       
     broadcastUpdate('UPDATE_SETTINGS');
     res.json({ success: true });

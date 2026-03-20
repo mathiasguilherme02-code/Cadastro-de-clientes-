@@ -2257,7 +2257,11 @@ export default function App() {
     const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
     const valorParcela = valorTotal / qtd;
 
+    const updatedSimulacoes = [...selectedClient.simulacoes];
     const novasParcelas = [];
+    const existingParcelas = updatedSimulacoes[simIndex].parcelas || [];
+    const oldDataInicial = updatedSimulacoes[simIndex].dataCriacao ? updatedSimulacoes[simIndex].dataCriacao.split('T')[0] : '';
+    const dateOrPrazoChanged = editSimData.dataInicial !== oldDataInicial || editSimData.prazo !== updatedSimulacoes[simIndex].prazo;
 
     for (let i = 1; i <= qtd; i++) {
       let dataVencimento = new Date(dataAtual);
@@ -2273,18 +2277,30 @@ export default function App() {
         dataVencimento = parseLocalDate(editSimData.dataVencimentoUnica);
       }
 
+      const existingParcela = existingParcelas.find((p: any) => p.numero === i);
+      
+      let finalDataVencimento = getLocalISODate(dataVencimento);
+      if (existingParcela && !dateOrPrazoChanged) {
+        finalDataVencimento = existingParcela.dataVencimento;
+      }
+
       novasParcelas.push({
         numero: i,
-        dataVencimento: getLocalISODate(dataVencimento),
-        valor: valorParcela,
-        status: 'pendente'
+        dataVencimento: finalDataVencimento,
+        valor: existingParcela && existingParcela.valor !== valorParcela && editSimData.valorSolicitado === updatedSimulacoes[simIndex].valorSolicitado && editSimData.taxaJuros === updatedSimulacoes[simIndex].taxaJuros && editSimData.quantidade === updatedSimulacoes[simIndex].quantidade ? existingParcela.valor : valorParcela,
+        status: existingParcela ? existingParcela.status : 'pendente',
+        paga: existingParcela ? existingParcela.paga : false,
+        dataPagamento: existingParcela ? existingParcela.dataPagamento : undefined,
+        abatimentos: existingParcela ? existingParcela.abatimentos : undefined,
+        jurosCongelados: existingParcela ? existingParcela.jurosCongelados : undefined,
+        dataCongelamento: existingParcela ? existingParcela.dataCongelamento : undefined
       });
     }
 
-    const updatedSimulacoes = [...selectedClient.simulacoes];
     updatedSimulacoes[simIndex] = {
       ...updatedSimulacoes[simIndex],
       ...editSimData,
+      dataCriacao: editSimData.dataInicial ? `${editSimData.dataInicial}T00:00:00` : updatedSimulacoes[simIndex].dataCriacao,
       parcelas: novasParcelas
     };
 
@@ -4420,7 +4436,7 @@ export default function App() {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome da mãe</label>
-                <input type="text" name="nomeMae" value={formData.nomeMae} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="nomeMae" value={formData.nomeMae} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div>
@@ -4431,12 +4447,12 @@ export default function App() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">RG</label>
-                <input type="text" name="rg" value={formData.rg} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="rg" value={formData.rg} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Data de nascimento</label>
-                <input type="text" name="dataNascimento" value={formData.dataNascimento} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="DD/MM/AAAA" maxLength={10} required />
+                <input type="text" name="dataNascimento" value={formData.dataNascimento} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="DD/MM/AAAA" maxLength={10} required={!isEditingClientData} />
               </div>
 
               <div>
@@ -4509,24 +4525,24 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Nome do parente próximo</label>
-                <input type="text" name="parenteNome" value={formData.parenteNome} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteNome" value={formData.parenteNome} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
               
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Grau de parentesco</label>
-                <input type="text" name="parenteGrau" value={formData.parenteGrau} onChange={handleInputChange} placeholder="Ex: Pai, Mãe, Irmão, Cônjuge" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteGrau" value={formData.parenteGrau} onChange={handleInputChange} placeholder="Ex: Pai, Mãe, Irmão, Cônjuge" className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Telefone do parente</label>
-                <input type="tel" name="parenteTelefone" value={formData.parenteTelefone} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="tel" name="parenteTelefone" value={formData.parenteTelefone} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
               <div className="md:col-span-1 relative">
                 <label className="block text-sm font-medium text-slate-700 mb-1">CEP do parente</label>
-                <input type="text" name="parenteCep" value={formData.parenteCep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, 'parente')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required />
+                <input type="text" name="parenteCep" value={formData.parenteCep} onChange={handleInputChange} onBlur={(e) => handleCepBlur(e, 'parente')} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" placeholder="00000-000" required={!isEditingClientData} />
                 {loadingParenteCep && <div className="absolute right-3 top-9 w-4 h-4 border-2 border-yellow-500 border-t-transparent rounded-full animate-spin"></div>}
                 <button 
                   type="button" 
@@ -4539,12 +4555,12 @@ export default function App() {
 
               <div className="md:col-span-3">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Endereço do parente</label>
-                <input type="text" name="parenteEndereco" value={formData.parenteEndereco} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteEndereco" value={formData.parenteEndereco} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Número</label>
-                <input type="text" name="parenteNumero" value={formData.parenteNumero} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteNumero" value={formData.parenteNumero} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div className="md:col-span-3">
@@ -4554,17 +4570,17 @@ export default function App() {
               
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Bairro</label>
-                <input type="text" name="parenteBairro" value={formData.parenteBairro} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteBairro" value={formData.parenteBairro} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
               
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Cidade</label>
-                <input type="text" name="parenteCidade" value={formData.parenteCidade} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteCidade" value={formData.parenteCidade} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
               
               <div className="md:col-span-1">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Estado</label>
-                <input type="text" name="parenteEstado" value={formData.parenteEstado} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="parenteEstado" value={formData.parenteEstado} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg bg-slate-50 focus:bg-white focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
             </div>
           </section>
@@ -4579,7 +4595,7 @@ export default function App() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">Qual a sua atividade financeira?</label>
-                <input type="text" name="atividadeFinanceira" value={formData.atividadeFinanceira} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required />
+                <input type="text" name="atividadeFinanceira" value={formData.atividadeFinanceira} onChange={handleInputChange} className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all" required={!isEditingClientData} />
               </div>
 
               <div className="md:col-span-2 mt-2 mb-4">
