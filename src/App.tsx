@@ -84,6 +84,7 @@ export default function App() {
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [fluxoMonth, setFluxoMonth] = useState('all'); // 'all' or '01' to '12'
+  const [fluxoTypeFilter, setFluxoTypeFilter] = useState('all'); // 'all', 'entrada', 'saida', 'retirada', 'aporte', 'entrada_prevista'
   const [newRetirada, setNewRetirada] = useState({ valor: '', descricao: '', data: getLocalISODate(), tipo: 'retirada' });
   
   const [adminPassword, setAdminPassword] = useState('');
@@ -815,50 +816,52 @@ export default function App() {
   }
 };
 
+  const calcularTotalAPagarAtualizado = (sim: any) => {
+    let total = 0;
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    
+    (sim.parcelas || []).forEach((p: any) => {
+      if (!p.paga) {
+        const vencimento = parseLocalDate(p.dataVencimento);
+        vencimento.setHours(0,0,0,0);
+        const isVencida = vencimento < hoje;
+        let valorAtualizado = p.valor;
+        const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+        
+        if (isVencida) {
+          let dataBase = hoje;
+          if (p.jurosCongelados && p.dataCongelamento) {
+            const dataCongelamento = parseLocalDate(p.dataCongelamento);
+            dataCongelamento.setHours(0,0,0,0);
+            if (dataCongelamento < hoje) {
+              dataBase = dataCongelamento;
+            }
+          }
+          const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
+          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const taxaDia = parseFloat(sim.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
+          valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
+        }
+        valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
+        total += valorAtualizado;
+      }
+    });
+    return total;
+  };
+
   const handleRenegociar = () => {
     if (!selectedClient) return;
     
     let totalOwed = 0;
-    const hoje = new Date();
-    hoje.setHours(0,0,0,0);
-    
     const activeLoanIndices: number[] = [];
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
     
     clientSimulacoes.forEach((sim: any, index: number) => {
       if (sim.status === 'aprovado' || !sim.status) {
-        let simTotalOwed = 0;
-        let hasUnpaid = false;
+        const simTotalOwed = calcularTotalAPagarAtualizado(sim);
         
-        sim.parcelas.forEach((p: any) => {
-          if (!p.paga) {
-            hasUnpaid = true;
-            const vencimento = parseLocalDate(p.dataVencimento);
-            vencimento.setHours(0,0,0,0);
-            const isVencida = vencimento < hoje;
-            let valorAtualizado = p.valor;
-            const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
-            
-            if (isVencida) {
-              let dataBase = hoje;
-              if (p.jurosCongelados && p.dataCongelamento) {
-                const dataCongelamento = parseLocalDate(p.dataCongelamento);
-                dataCongelamento.setHours(0,0,0,0);
-                if (dataCongelamento < hoje) {
-                  dataBase = dataCongelamento;
-                }
-              }
-              const diffTime = Math.max(0, dataBase.getTime() - vencimento.getTime());
-              const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              const taxaDia = parseFloat(sim.taxaAtrasoDia) || parseFloat(adminSettings.taxaAtrasoDia) || 1;
-              valorAtualizado = p.valor + (p.valor * (taxaDia / 100) * diasAtraso);
-            }
-            valorAtualizado = Math.max(0, valorAtualizado - abatimentosTotal);
-            simTotalOwed += valorAtualizado;
-          }
-        });
-        
-        if (hasUnpaid && simTotalOwed > 0) {
+        if (simTotalOwed > 0) {
           totalOwed += simTotalOwed;
           activeLoanIndices.push(index);
         }
@@ -1424,7 +1427,14 @@ export default function App() {
                       {(sim.status === 'aprovado' || !sim.status) && <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>}
                       {sim.arquivado && <span className="text-xs bg-slate-700 text-white px-2 py-1 rounded-full uppercase tracking-wider">Arquivado</span>}
                     </h2>
-                    <p className="text-yellow-100 mt-1">Valor Solicitado: {formatCurrency(sim.valorSolicitado)}</p>
+                    <p className="text-yellow-100 mt-1">
+                      Valor Solicitado: {formatCurrency(sim.valorSolicitado)}
+                      {(!sim.status || sim.status === 'aprovado') && (
+                        <span className="ml-4 font-semibold text-white">
+                          Valor total a pagar: {formatCurrency(calcularTotalAPagarAtualizado(sim))}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 
@@ -1794,7 +1804,7 @@ export default function App() {
   if (view === 'admin') {
     const cronogramaParcelas = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
         .flatMap((s: any, sIdx: number) => 
         (s.parcelas || []).map((p: any, pIdx: number) => {
           const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
@@ -1858,7 +1868,7 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
+          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
           .flatMap((s: any, sIdx: number) => 
             (s.parcelas || []).filter((p: any) => !p.paga).map((p: any) => {
               const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
@@ -1920,7 +1930,7 @@ export default function App() {
 
     const monthPendentes = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => {
           const hoje = new Date();
@@ -1937,7 +1947,7 @@ export default function App() {
 
     const monthInadimplencia = clients.flatMap(c => 
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
+        .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
         .flatMap((s: any) => 
         (s.parcelas || []).filter((p: any) => {
           const hoje = new Date();
@@ -2928,8 +2938,8 @@ export default function App() {
                                 <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.valorSolicitado)}</p>
                               </div>
                               <div>
-                                <p className="text-sm text-slate-500">Total a Pagar</p>
-                                <p className="text-lg font-semibold text-slate-800">{formatCurrency(sim.parcelas.reduce((acc: number, p: any) => acc + parseFloat(p.valor || 0), 0))}</p>
+                                <p className="text-sm text-slate-500">Valor total a pagar</p>
+                                <p className="text-lg font-semibold text-slate-800">{formatCurrency(calcularTotalAPagarAtualizado(sim))}</p>
                               </div>
                               <div>
                                 <p className="text-sm text-slate-500">Prazo</p>
@@ -3537,6 +3547,7 @@ export default function App() {
                         <th className="py-4 px-6 font-semibold text-slate-700">Nome do Cliente</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">CPF</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">Telefone</th>
+                        <th className="py-4 px-6 font-semibold text-slate-700">Valor total a pagar</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">Data de Cadastro</th>
                         <th className="py-4 px-6 font-semibold text-slate-700">Documentos</th>
                         <th className="py-4 px-6 font-semibold text-slate-700 text-right">Ações</th>
@@ -3563,6 +3574,11 @@ export default function App() {
                           </td>
                           <td className="py-4 px-6 text-slate-600">{client.cpf}</td>
                           <td className="py-4 px-6 text-slate-600">{client.telefone}</td>
+                          <td className="py-4 px-6 font-semibold text-slate-800">
+                            {formatCurrency((client.simulacoes || (client.simulacao ? [client.simulacao] : []))
+                              .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado')
+                              .reduce((acc: number, sim: any) => acc + calcularTotalAPagarAtualizado(sim), 0))}
+                          </td>
                           <td className="py-4 px-6 text-slate-600">{client.dataCadastro}</td>
                           <td className="py-4 px-6">
                             <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-medium">
@@ -3746,6 +3762,18 @@ export default function App() {
                   </h2>
                   <div className="flex gap-2">
                     <select 
+                      value={fluxoTypeFilter}
+                      onChange={(e) => setFluxoTypeFilter(e.target.value)}
+                      className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                    >
+                      <option value="all">Todos os Tipos</option>
+                      <option value="entrada">Entradas (Pagamentos)</option>
+                      <option value="saida">Saídas (Empréstimos)</option>
+                      <option value="retirada">Retiradas / Despesas</option>
+                      <option value="aporte">Aportes</option>
+                      <option value="entrada_prevista">Previsto</option>
+                    </select>
+                    <select 
                       value={fluxoMonth}
                       onChange={(e) => setFluxoMonth(e.target.value)}
                       className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
@@ -3903,11 +3931,11 @@ export default function App() {
 
               <div className="bg-white rounded-2xl shadow-xl p-6">
                 <h3 className="text-lg font-bold text-slate-800 mb-4">Histórico de Movimentações ({fluxoMonth === 'all' ? fluxoYear : `${fluxoMonth}/${fluxoYear}`})</h3>
-                {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoFilter)).length > 0 ? (
+                {transactionsWithBalance.filter((t: any) => t.data.startsWith(fluxoFilter) && (fluxoTypeFilter === 'all' || t.tipo === fluxoTypeFilter)).length > 0 ? (
                   <div className="space-y-6">
                     {Object.entries(
                       [...transactionsWithBalance]
-                        .filter((t: any) => t.data.startsWith(fluxoFilter))
+                        .filter((t: any) => t.data.startsWith(fluxoFilter) && (fluxoTypeFilter === 'all' || t.tipo === fluxoTypeFilter))
                         .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())
                         .reduce((acc: any, t: any) => {
                           const dateKey = t.data.split('T')[0];
@@ -3915,7 +3943,9 @@ export default function App() {
                           acc[dateKey].push(t);
                           return acc;
                         }, {})
-                    ).map(([date, transactions]: [string, any]) => (
+                    )
+                    .sort(([dateA], [dateB]) => new Date(dateA).getTime() - new Date(dateB).getTime())
+                    .map(([date, transactions]: [string, any]) => (
                       <div key={date} className="border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-6 last:mb-0">
                         <div className="bg-slate-100 px-4 py-2 border-b border-slate-200 font-bold text-slate-700">
                           {formatDate(date)}
@@ -4251,6 +4281,10 @@ export default function App() {
                     <div>
                       <p className="text-sm text-slate-500">Valor Solicitado</p>
                       <p className="text-lg font-semibold text-slate-800">{formatCurrency(simulacao.valorSolicitado)}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-slate-500">Valor total a pagar</p>
+                      <p className="text-lg font-semibold text-slate-800">{formatCurrency(simulacao.parcelas.reduce((acc: number, p: any) => acc + p.valor, 0))}</p>
                     </div>
                     <div>
                       <p className="text-sm text-slate-500">Total de Parcelas</p>
