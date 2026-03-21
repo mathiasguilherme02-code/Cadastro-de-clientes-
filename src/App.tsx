@@ -869,7 +869,7 @@ export default function App() {
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
     
     clientSimulacoes.forEach((sim: any, index: number) => {
-      if (sim.status === 'aprovado' || !sim.status) {
+      if ((sim.status === 'aprovado' || !sim.status) && sim.clientAccepted !== 'nao') {
         const simTotalOwed = calcularTotalAPagarAtualizado(sim);
         
         if (simTotalOwed > 0) {
@@ -1442,7 +1442,13 @@ export default function App() {
                       Empréstimo {clientSimulacoes.length > 1 ? `#${clientSimulacoes.length - simIndex}` : ''}
                       {sim.status === 'pendente' && <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full uppercase tracking-wider">Em Análise</span>}
                       {sim.status === 'reprovado' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Reprovado</span>}
-                      {(sim.status === 'aprovado' || !sim.status) && <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>}
+                      {(sim.status === 'aprovado' || !sim.status) && (
+                        <>
+                          <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>
+                          {sim.clientAccepted === 'sim' && <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full uppercase tracking-wider ml-2">Aceito</span>}
+                          {sim.clientAccepted === 'nao' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider ml-2">Recusado</span>}
+                        </>
+                      )}
                       {sim.arquivado && <span className="text-xs bg-slate-700 text-white px-2 py-1 rounded-full uppercase tracking-wider">Arquivado</span>}
                     </h2>
                     <p className="text-yellow-100 mt-1">
@@ -1475,6 +1481,27 @@ export default function App() {
                     </div>
                   ) : (
                     <>
+                      {!sim.clientAccepted && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-center">
+                          <h3 className="text-xl font-bold text-blue-800 mb-2">Proposta Aprovada!</h3>
+                          <p className="text-blue-700 mb-4">
+                            Sua simulação foi aprovada nas seguintes condições caso concorde ou não aperte abaixo da sua simulação SIM ou NÃO
+                          </p>
+                        </div>
+                      )}
+                      
+                      {sim.clientAccepted === 'sim' && (
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-8 text-center">
+                          <p className="text-emerald-700 font-medium">Você aceitou esta proposta.</p>
+                        </div>
+                      )}
+
+                      {sim.clientAccepted === 'nao' && (
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 text-center">
+                          <p className="text-red-700 font-medium">Você recusou esta proposta.</p>
+                        </div>
+                      )}
+
                       <h3 className="text-xl font-bold text-slate-800 mb-6 border-b pb-2 flex items-center gap-2">
                         <FileText size={20} className="text-yellow-500" />
                         Suas Parcelas
@@ -1579,6 +1606,25 @@ export default function App() {
                       );
                     })}
                   </div>
+                  
+                  {!sim.clientAccepted && (
+                    <div className="mt-8 pt-6 border-t border-slate-200">
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => handleClientAcceptance(simIndex, true)}
+                          className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
+                        >
+                          SIM (Aceitar Proposta)
+                        </button>
+                        <button
+                          onClick={() => handleClientAcceptance(simIndex, false)}
+                          className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
+                        >
+                          NÃO (Recusar Proposta)
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   </>
                   )}
                 </div>
@@ -2419,6 +2465,39 @@ export default function App() {
       }
     };
 
+  const handleClientAcceptance = async (simIndex: number, accepted: boolean) => {
+    if (!selectedClient) return;
+    
+    // Check if the simulation is actually approved before allowing acceptance
+    const sim = selectedClient.simulacoes?.[simIndex] || (selectedClient.simulacao ? selectedClient.simulacao : null);
+    if (!sim || (sim.status !== 'aprovado' && sim.status)) return;
+
+    const updatedSimulacoes = selectedClient.simulacoes ? [...selectedClient.simulacoes] : [selectedClient.simulacao];
+    updatedSimulacoes[simIndex] = { 
+      ...updatedSimulacoes[simIndex], 
+      clientAccepted: accepted ? 'sim' : 'nao' 
+    };
+    
+    const updatedClient = { ...selectedClient, simulacoes: updatedSimulacoes };
+    
+    try {
+      const res = await fetch(`/api/clients/${updatedClient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedClient)
+      });
+      if (!res.ok) {
+        throw new Error('Failed to update client');
+      }
+      setSelectedClient(updatedClient);
+      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      alert(accepted ? 'Proposta aceita com sucesso!' : 'Proposta recusada.');
+    } catch (error) {
+      console.error("Erro ao atualizar aceite do cliente:", error);
+      alert("Ocorreu um erro ao enviar sua resposta. Tente novamente.");
+    }
+  };
+
     const handleGeneratePDF = async (simIndex: number) => {
       const element = document.getElementById(`simulacao-detalhes-${simIndex}`);
       if (!element) return;
@@ -2794,7 +2873,12 @@ export default function App() {
                               </>
                             )}
                             {(sim.status === 'aprovado' || !sim.status) && (
-                              <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">Aprovado</span>
+                              <>
+                                <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-sm font-medium">Aprovado</span>
+                                {sim.clientAccepted === 'sim' && <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium ml-2">Aceito pelo Cliente</span>}
+                                {sim.clientAccepted === 'nao' && <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium ml-2">Recusado pelo Cliente</span>}
+                                {!sim.clientAccepted && <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm font-medium ml-2">Aguardando Cliente</span>}
+                              </>
                             )}
                             {sim.status === 'reprovado' && (
                               <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium">Reprovado</span>
