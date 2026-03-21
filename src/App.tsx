@@ -1611,13 +1611,19 @@ export default function App() {
                     <div className="mt-8 pt-6 border-t border-slate-200">
                       <div className="flex gap-4">
                         <button
-                          onClick={() => handleClientAcceptance(simIndex, true)}
+                          onClick={() => {
+                            const originalIndex = rawSimulacoes.indexOf(sim);
+                            handleClientAcceptance(originalIndex, true);
+                          }}
                           className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
                         >
                           SIM (Aceitar Proposta)
                         </button>
                         <button
-                          onClick={() => handleClientAcceptance(simIndex, false)}
+                          onClick={() => {
+                            const originalIndex = rawSimulacoes.indexOf(sim);
+                            handleClientAcceptance(originalIndex, false);
+                          }}
                           className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
                         >
                           NÃO (Recusar Proposta)
