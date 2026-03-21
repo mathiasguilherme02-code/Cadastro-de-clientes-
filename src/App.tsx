@@ -126,18 +126,18 @@ export default function App() {
   const [editTransactionData, setEditTransactionData] = useState({ valor: '', descricao: '', data: '', tipo: '' });
 
   const [adminSettings, setAdminSettings] = useState({
-    taxaJuros: '1',
+    taxaJuros: '40',
     taxaAtrasoDia: '8',
-    tipoTaxa: 'diaria'
+    tipoTaxa: 'mensal'
   });
 
   const [simulacao, setSimulacao] = useState({
     valorSolicitado: '',
     prazo: 'mensal',
     quantidade: '1',
-    taxaJuros: '1',
-    taxaAtrasoDia: '1',
-    tipoTaxa: 'diaria',
+    taxaJuros: '40',
+    taxaAtrasoDia: '8',
+    tipoTaxa: 'mensal',
     dataVencimentoUnica: '',
     parcelas: [] as any[],
     isRenegociacao: false,
@@ -148,9 +148,9 @@ export default function App() {
     valorSolicitado: '',
     prazo: 'mensal',
     quantidade: '1',
-    taxaJuros: '1',
-    taxaAtrasoDia: '1',
-    tipoTaxa: 'diaria',
+    taxaJuros: '40',
+    taxaAtrasoDia: '8',
+    tipoTaxa: 'mensal',
     dataInicial: getLocalISODate(),
     dataVencimentoUnica: ''
   });
@@ -488,7 +488,7 @@ export default function App() {
 
     const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
     const taxa = parseFloat(adminSettings.taxaJuros) || 1;
-    const isMensal = adminSettings.tipoTaxa === 'mensal';
+    const isMensal = true; // Fixado mensalmente
     
     let diasTotais = 30;
     let dataAtual = new Date();
@@ -1440,11 +1440,6 @@ export default function App() {
                     </h2>
                     <p className="text-yellow-100 mt-1">
                       Valor Solicitado: {formatCurrency(sim.valorSolicitado)}
-                      {(!sim.status || sim.status === 'aprovado') && (
-                        <span className="ml-4 font-semibold text-white">
-                          Valor total a pagar: {formatCurrency(calcularTotalAPagarAtualizado(sim))}
-                        </span>
-                      )}
                     </p>
                   </div>
                 </div>
@@ -2243,7 +2238,7 @@ export default function App() {
 
     const qtd = editSimData.prazo === 'única' ? 1 : parseInt(editSimData.quantidade) || 1;
     const taxa = parseFloat(editSimData.taxaJuros) || 1;
-    const isMensal = editSimData.tipoTaxa === 'mensal';
+    const isMensal = true; // Fixado mensalmente
     
     let diasTotais = 30;
     let dataAtual = editSimData.dataInicial ? parseLocalDate(editSimData.dataInicial) : new Date();
@@ -2550,21 +2545,10 @@ export default function App() {
                   Copiar Link do Cliente
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Taxa Padrão</label>
-                  <select
-                    value={adminSettings.tipoTaxa || 'diaria'}
-                    onChange={(e) => setAdminSettings({...adminSettings, tipoTaxa: e.target.value})}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
-                  >
-                    <option value="diaria">Diária</option>
-                    <option value="mensal">Mensal</option>
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    {adminSettings.tipoTaxa === 'mensal' ? 'Taxa de Juros ao Mês (%)' : 'Taxa de Juros ao Dia (%)'}
+                    Taxa de Juros ao Mês (%)
                   </label>
                   <input 
                     type="number" 
@@ -2918,19 +2902,8 @@ export default function App() {
                                 </div>
                               )}
                               <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de Taxa</label>
-                                <select
-                                  value={editSimData.tipoTaxa || 'diaria'}
-                                  onChange={(e) => setEditSimData({...editSimData, tipoTaxa: e.target.value})}
-                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-                                >
-                                  <option value="diaria">Diária</option>
-                                  <option value="mensal">Mensal</option>
-                                </select>
-                              </div>
-                              <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                  {editSimData.tipoTaxa === 'mensal' ? 'Taxa de Juros ao Mês (%)' : 'Taxa de Juros ao Dia (%)'}
+                                  Taxa de Juros ao Mês (%)
                                 </label>
                                 <input
                                   type="number"
@@ -2981,8 +2954,8 @@ export default function App() {
                               </div>
                               <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 print:hidden">
                                 <p className="text-xs text-yellow-800 font-medium mb-1">Cálculo de Juros (Visão Admin)</p>
-                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao {sim.tipoTaxa === 'mensal' ? 'mês' : 'dia'}</p>
-                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * {sim.tipoTaxa === 'mensal' ? '(Dias Totais / 30)' : 'Dias Totais'})</p>
+                                <p className="text-sm text-yellow-900">Taxa aplicada: {sim.taxaJuros}% ao mês</p>
+                                <p className="text-xs text-yellow-700 mt-1">Fórmula: Valor Solicitado + (Valor Solicitado * Taxa de Juros * (Dias Totais / 30))</p>
                               </div>
                             </div>
 
@@ -4316,10 +4289,6 @@ export default function App() {
                     <div>
                       <p className="text-sm text-slate-500">Valor Solicitado</p>
                       <p className="text-lg font-semibold text-slate-800">{formatCurrency(simulacao.valorSolicitado)}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-slate-500">Valor total a pagar</p>
-                      <p className="text-lg font-semibold text-slate-800">{formatCurrency(simulacao.parcelas.reduce((acc: number, p: any) => acc + p.valor, 0))}</p>
                     </div>
                     <div>
                       <p className="text-sm text-slate-500">Total de Parcelas</p>

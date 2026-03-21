@@ -127,7 +127,7 @@ app.get("/api/settings", async (req, res) => {
     const docSnap = await getDoc(docRef);
       
     if (!docSnap.exists()) {
-      return res.json({ taxaJuros: '40', taxaAtrasoDia: '8' });
+      return res.json({ taxaJuros: '40', taxaAtrasoDia: '8', tipoTaxa: 'mensal' });
     }
     res.json(docSnap.data());
   } catch (error) {
