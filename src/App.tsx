@@ -901,9 +901,11 @@ export default function App() {
     setView('simulation');
   };
 
-  const handleAddSimulation = async () => {
+  const handleAddSimulation = async (simulacaoOverride?: any) => {
     if (!selectedClient) return;
     
+    const simToUse = simulacaoOverride || simulacao;
+
     if (!adminToken) {
       const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
       const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
@@ -919,11 +921,11 @@ export default function App() {
     }
 
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const novaSimulacao = { ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() };
+    const novaSimulacao = { ...simToUse, status: 'pendente', dataCriacao: getLocalISODateTime() };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
     
-    if (simulacao.isRenegociacao && simulacao.renegociadoFromSimIndices && simulacao.renegociadoFromSimIndices.length > 0) {
-      simulacao.renegociadoFromSimIndices.forEach(oldIndex => {
+    if (simToUse.isRenegociacao && simToUse.renegociadoFromSimIndices && simToUse.renegociadoFromSimIndices.length > 0) {
+      simToUse.renegociadoFromSimIndices.forEach((oldIndex: number) => {
         const adjustedIndex = oldIndex + 1;
         if (updatedSimulacoes[adjustedIndex]) {
           updatedSimulacoes[adjustedIndex] = {
@@ -962,7 +964,12 @@ export default function App() {
       // Update local state
       setClients(prev => prev.map(c => c.id === selectedClient.id ? updatedClient : c));
       setSelectedClient(updatedClient);
-      setView('client_dashboard');
+      if (adminToken) {
+        setView('admin');
+        setSelectedClient(null);
+      } else {
+        setView('client_dashboard');
+      }
       alert('Novo empréstimo adicionado com sucesso!');
     } catch (error) {
       console.error("Erro ao adicionar empréstimo:", error);
@@ -4274,14 +4281,95 @@ export default function App() {
               )}
             </div>
             
-            <button 
-              onClick={calcularSimulacao}
-              className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 px-8 rounded-xl transition-all"
-            >
-              Calcular Simulação
-            </button>
+            {adminToken ? (
+              <button 
+                onClick={calcularSimulacao}
+                className="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 px-8 rounded-xl transition-all"
+              >
+                Calcular Simulação
+              </button>
+            ) : (
+              <button 
+                onClick={() => {
+                  if (!simulacao.valorSolicitado || !simulacao.quantidade) {
+                    alert('Por favor, preencha o valor e a quantidade de parcelas.');
+                    return;
+                  }
+                  if (simulacao.prazo === 'única' && !simulacao.dataVencimentoUnica) {
+                    alert('Por favor, informe a data de pagamento.');
+                    return;
+                  }
+                  
+                  // Calculate installments synchronously
+                  const valor = parseFloat(simulacao.valorSolicitado);
+                  const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
+                  const taxa = parseFloat(adminSettings.taxaJuros) || 1;
+                  const isMensal = true;
+                  
+                  let diasTotais = 30;
+                  let dataAtual = new Date();
+                  dataAtual.setHours(0, 0, 0, 0);
 
-            {simulacao.parcelas.length > 0 && (
+                  if (simulacao.prazo === 'dia') diasTotais = qtd;
+                  else if (simulacao.prazo === 'semanal') diasTotais = qtd * 7;
+                  else if (simulacao.prazo === 'quinzenal') diasTotais = qtd * 15;
+                  else if (simulacao.prazo === 'mensal') diasTotais = qtd * 30;
+                  else if (simulacao.prazo === 'única') {
+                    const dataVenc = parseLocalDate(simulacao.dataVencimentoUnica);
+                    dataVenc.setHours(0, 0, 0, 0);
+                    const diffTime = dataVenc.getTime() - dataAtual.getTime();
+                    diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                  }
+
+                  const fatorTempo = isMensal ? (diasTotais / 30) : diasTotais;
+                  const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
+                  const valorParcela = valorTotal / qtd;
+
+                  const novasParcelas = [];
+                  for (let i = 1; i <= qtd; i++) {
+                    let dataVencimento = new Date(dataAtual);
+                    if (simulacao.prazo === 'dia') {
+                      dataVencimento.setDate(dataVencimento.getDate() + i);
+                    } else if (simulacao.prazo === 'semanal') {
+                      dataVencimento.setDate(dataVencimento.getDate() + (i * 7));
+                    } else if (simulacao.prazo === 'quinzenal') {
+                      dataVencimento.setDate(dataVencimento.getDate() + (i * 15));
+                    } else if (simulacao.prazo === 'mensal') {
+                      dataVencimento.setMonth(dataVencimento.getMonth() + i);
+                    } else if (simulacao.prazo === 'única') {
+                      dataVencimento = parseLocalDate(simulacao.dataVencimentoUnica);
+                    }
+                    novasParcelas.push({
+                      numero: i,
+                      dataVencimento: getLocalISODate(dataVencimento),
+                      valor: valorParcela,
+                      paga: false
+                    });
+                  }
+
+                  const novaSimulacao = {
+                    ...simulacao,
+                    taxaJuros: adminSettings.taxaJuros,
+                    taxaAtrasoDia: adminSettings.taxaAtrasoDia,
+                    tipoTaxa: adminSettings.tipoTaxa || 'diaria',
+                    parcelas: novasParcelas
+                  };
+
+                  setSimulacao(novaSimulacao);
+
+                  if (selectedClient) {
+                    handleAddSimulation(novaSimulacao);
+                  } else {
+                    setView('form');
+                  }
+                }}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
+              >
+                {selectedClient ? 'Solicitar Empréstimo' : 'Avançar para Cadastro'}
+              </button>
+            )}
+
+            {simulacao.parcelas.length > 0 && adminToken && (
               <div className="mt-8 pt-8 border-t border-slate-200">
                 <h3 className="text-xl font-semibold text-slate-800 mb-4">Resultado da Simulação</h3>
                 <div className="bg-yellow-50 rounded-xl p-6 border border-yellow-200 mb-6">
@@ -4312,29 +4400,27 @@ export default function App() {
                   </div>
                 </div>
                 
-                {selectedClient ? (
-                  <div className="flex gap-4">
-                    <button 
-                      onClick={() => setView('client_dashboard')}
-                      className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-8 rounded-xl transition-all text-lg"
-                    >
-                      Cancelar
-                    </button>
-                    <button 
-                      onClick={handleAddSimulation}
-                      className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
-                    >
-                      {simulacao.isRenegociacao ? 'Confirmar Renegociação' : 'Adicionar Empréstimo'}
-                    </button>
-                  </div>
-                ) : (
+                <div className="flex gap-4">
                   <button 
-                    onClick={() => setView('form')}
-                    className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
+                    onClick={() => {
+                      if (adminToken) {
+                        setView('admin');
+                        setSelectedClient(null);
+                      } else {
+                        setView('client_dashboard');
+                      }
+                    }}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-8 rounded-xl transition-all text-lg"
                   >
-                    Avançar para Cadastro
+                    Cancelar
                   </button>
-                )}
+                  <button 
+                    onClick={() => handleAddSimulation()}
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
+                  >
+                    {simulacao.isRenegociacao ? 'Confirmar Renegociação' : 'Adicionar Empréstimo'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
