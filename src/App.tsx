@@ -2472,7 +2472,7 @@ export default function App() {
     };
 
   const handleClientAcceptance = async (simIndex: number, accepted: boolean) => {
-    if (!selectedClient) return;
+    if (!selectedClient || simIndex < 0) return;
     
     // Check if the simulation is actually approved before allowing acceptance
     const sim = selectedClient.simulacoes?.[simIndex] || (selectedClient.simulacao ? selectedClient.simulacao : null);
@@ -2497,7 +2497,7 @@ export default function App() {
       }
       setSelectedClient(updatedClient);
       setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
-      alert(accepted ? 'Proposta aceita com sucesso!' : 'Proposta recusada.');
+      alert('Sua resposta foi enviada com sucesso, aguarde o contato da nossa equipe');
     } catch (error) {
       console.error("Erro ao atualizar aceite do cliente:", error);
       alert("Ocorreu um erro ao enviar sua resposta. Tente novamente.");

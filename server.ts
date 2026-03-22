@@ -113,7 +113,12 @@ app.post("/api/clients/login", async (req, res) => {
     
     const data = querySnapshot.docs[0].data();
     const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
-    res.json({ ...clientData, id: querySnapshot.docs[0].id });
+    res.json({ 
+      ...clientData, 
+      id: querySnapshot.docs[0].id,
+      cpf: data.cpf,
+      nomeCompleto: data.nomeCompleto || clientData.nomeCompleto
+    });
   } catch (error) {
     console.error("Error logging in client:", error);
     res.status(500).json({ error: "Erro ao fazer login" });
