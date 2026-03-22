@@ -262,8 +262,15 @@ app.put("/api/clients/:id", async (req, res) => {
         return res.status(404).json({ error: "Cliente não encontrado" });
       }
       
+      let dbCpf = docSnap.data().cpf;
+      if (!dbCpf) {
+        const dados = typeof docSnap.data().dados === 'string' ? JSON.parse(docSnap.data().dados) : docSnap.data().dados;
+        dbCpf = dados.cpf;
+      }
+      dbCpf = dbCpf?.replace(/[^\d]+/g, '');
+      
       const payloadCpf = client.cpf?.replace(/[^\d]+/g, '');
-      if (docSnap.data().cpf !== payloadCpf) {
+      if (dbCpf !== payloadCpf) {
         return res.status(403).json({ error: "Acesso negado para atualizar este cliente" });
       }
     } else if (client.cpf) {

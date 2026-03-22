@@ -1341,7 +1341,9 @@ export default function App() {
 
   if (view === 'client_dashboard' && selectedClient) {
     const rawSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const clientSimulacoes = rawSimulacoes.filter((s: any) => s && s.valorSolicitado);
+    const clientSimulacoes = rawSimulacoes
+      .map((s: any, index: number) => ({ ...s, originalIndex: index }))
+      .filter((s: any) => s && s.valorSolicitado);
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3">
@@ -1612,8 +1614,7 @@ export default function App() {
                       <div className="flex gap-4">
                         <button
                           onClick={() => {
-                            const originalIndex = rawSimulacoes.indexOf(sim);
-                            handleClientAcceptance(originalIndex, true);
+                            handleClientAcceptance(sim.originalIndex, true);
                           }}
                           className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
                         >
@@ -1621,8 +1622,7 @@ export default function App() {
                         </button>
                         <button
                           onClick={() => {
-                            const originalIndex = rawSimulacoes.indexOf(sim);
-                            handleClientAcceptance(originalIndex, false);
+                            handleClientAcceptance(sim.originalIndex, false);
                           }}
                           className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-6 rounded-xl shadow-md transition-colors text-lg"
                         >
@@ -2472,11 +2472,25 @@ export default function App() {
     };
 
   const handleClientAcceptance = async (simIndex: number, accepted: boolean) => {
-    if (!selectedClient || simIndex < 0) return;
+    if (!selectedClient) {
+      alert("Erro: Cliente não selecionado.");
+      return;
+    }
+    if (simIndex === undefined || simIndex < 0) {
+      alert("Erro: Índice da simulação inválido.");
+      return;
+    }
     
     // Check if the simulation is actually approved before allowing acceptance
     const sim = selectedClient.simulacoes?.[simIndex] || (selectedClient.simulacao ? selectedClient.simulacao : null);
-    if (!sim || (sim.status !== 'aprovado' && sim.status)) return;
+    if (!sim) {
+      alert("Erro: Simulação não encontrada.");
+      return;
+    }
+    if (sim.status && sim.status.toLowerCase() !== 'aprovado') {
+      alert(`Erro: Simulação não está aprovada. Status atual: ${sim.status}`);
+      return;
+    }
 
     const updatedSimulacoes = selectedClient.simulacoes ? [...selectedClient.simulacoes] : [selectedClient.simulacao];
     updatedSimulacoes[simIndex] = { 
@@ -2493,14 +2507,15 @@ export default function App() {
         body: JSON.stringify(updatedClient)
       });
       if (!res.ok) {
-        throw new Error('Failed to update client');
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to update client');
       }
       setSelectedClient(updatedClient);
       setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
       alert('Sua resposta foi enviada com sucesso, aguarde o contato da nossa equipe');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao atualizar aceite do cliente:", error);
-      alert("Ocorreu um erro ao enviar sua resposta. Tente novamente.");
+      alert(`Ocorreu um erro ao enviar sua resposta: ${error.message}`);
     }
   };
 
