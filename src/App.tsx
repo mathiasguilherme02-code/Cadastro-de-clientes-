@@ -109,6 +109,8 @@ export default function App() {
   }, [adminToken]);
   const [clientCpf, setClientCpf] = useState('');
   const [clientLoginError, setClientLoginError] = useState('');
+  const [clientActionMessage, setClientActionMessage] = useState('');
+  const [clientActionError, setClientActionError] = useState('');
   const [showReprovadoAlert, setShowReprovadoAlert] = useState(false);
   const [showActiveLoanAlert, setShowActiveLoanAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
@@ -660,7 +662,7 @@ export default function App() {
     try {
       // Convert files to base64 for database storage
       const fileUrls: { name: string, url: string, type: string, categoria?: string }[] = [];
-      const filesToProcess = Object.entries(categorizedFiles);
+      const filesToProcess = Object.entries(categorizedFiles) as [string, File][];
       
     if (filesToProcess.length > 0) {
       let totalSize = 0;
@@ -1001,6 +1003,66 @@ export default function App() {
       }
     } catch (error) {
       setClientLoginError('Erro ao conectar com o servidor.');
+    }
+  };
+
+  const handleClientAcceptance = async (simIndex: number, accepted: boolean) => {
+    console.log("handleClientAcceptance called with:", { simIndex, accepted });
+    setClientActionMessage('');
+    setClientActionError('');
+    
+    if (!selectedClient) {
+      console.error("Erro: Cliente não selecionado.");
+      setClientActionError("Erro: Cliente não selecionado.");
+      return;
+    }
+    if (simIndex === undefined || simIndex < 0) {
+      console.error("Erro: Índice da simulação inválido.", simIndex);
+      setClientActionError("Erro: Índice da simulação inválido.");
+      return;
+    }
+    
+    // Check if the simulation is actually approved before allowing acceptance
+    const sim = selectedClient.simulacoes?.[simIndex] || (selectedClient.simulacao ? selectedClient.simulacao : null);
+    if (!sim) {
+      console.error("Erro: Simulação não encontrada.", simIndex);
+      setClientActionError("Erro: Simulação não encontrada.");
+      return;
+    }
+    if (sim.status && sim.status.toLowerCase().trim() !== 'aprovado') {
+      console.error(`Erro: Simulação não está aprovada. Status atual: '${sim.status}'`);
+      setClientActionError(`Erro: Simulação não está aprovada. Status atual: ${sim.status}`);
+      return;
+    }
+
+    const updatedSimulacoes = selectedClient.simulacoes ? [...selectedClient.simulacoes] : [selectedClient.simulacao];
+    updatedSimulacoes[simIndex] = { 
+      ...updatedSimulacoes[simIndex], 
+      clientAccepted: accepted ? 'sim' : 'nao' 
+    };
+    
+    const updatedClient = { ...selectedClient, simulacoes: updatedSimulacoes };
+    console.log("Sending updated client:", updatedClient);
+    
+    try {
+      const res = await fetch(`/api/clients/${updatedClient.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedClient)
+      });
+      console.log("Fetch response status:", res.status);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error("Fetch error data:", errData);
+        throw new Error(errData.error || 'Failed to update client');
+      }
+      setSelectedClient(updatedClient);
+      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      setClientActionMessage('Sua resposta foi enviada com sucesso, aguarde o contato da nossa equipe');
+      console.log("Client acceptance updated successfully.");
+    } catch (error: any) {
+      console.error("Erro ao atualizar aceite do cliente:", error);
+      setClientActionError(`Ocorreu um erro ao enviar sua resposta: ${error.message}`);
     }
   };
 
@@ -1608,6 +1670,19 @@ export default function App() {
                       );
                     })}
                   </div>
+                  
+                  {clientActionMessage && (
+                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2">
+                      <CheckCircle2 size={20} />
+                      <p>{clientActionMessage}</p>
+                    </div>
+                  )}
+                  {clientActionError && (
+                    <div className="mt-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-2">
+                      <AlertCircle size={20} />
+                      <p>{clientActionError}</p>
+                    </div>
+                  )}
                   
                   {!sim.clientAccepted && (
                     <div className="mt-8 pt-6 border-t border-slate-200">
@@ -2470,54 +2545,6 @@ export default function App() {
         alert("Erro ao atualizar status.");
       }
     };
-
-  const handleClientAcceptance = async (simIndex: number, accepted: boolean) => {
-    if (!selectedClient) {
-      alert("Erro: Cliente não selecionado.");
-      return;
-    }
-    if (simIndex === undefined || simIndex < 0) {
-      alert("Erro: Índice da simulação inválido.");
-      return;
-    }
-    
-    // Check if the simulation is actually approved before allowing acceptance
-    const sim = selectedClient.simulacoes?.[simIndex] || (selectedClient.simulacao ? selectedClient.simulacao : null);
-    if (!sim) {
-      alert("Erro: Simulação não encontrada.");
-      return;
-    }
-    if (sim.status && sim.status.toLowerCase() !== 'aprovado') {
-      alert(`Erro: Simulação não está aprovada. Status atual: ${sim.status}`);
-      return;
-    }
-
-    const updatedSimulacoes = selectedClient.simulacoes ? [...selectedClient.simulacoes] : [selectedClient.simulacao];
-    updatedSimulacoes[simIndex] = { 
-      ...updatedSimulacoes[simIndex], 
-      clientAccepted: accepted ? 'sim' : 'nao' 
-    };
-    
-    const updatedClient = { ...selectedClient, simulacoes: updatedSimulacoes };
-    
-    try {
-      const res = await fetch(`/api/clients/${updatedClient.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedClient)
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Failed to update client');
-      }
-      setSelectedClient(updatedClient);
-      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
-      alert('Sua resposta foi enviada com sucesso, aguarde o contato da nossa equipe');
-    } catch (error: any) {
-      console.error("Erro ao atualizar aceite do cliente:", error);
-      alert(`Ocorreu um erro ao enviar sua resposta: ${error.message}`);
-    }
-  };
 
     const handleGeneratePDF = async (simIndex: number) => {
       const element = document.getElementById(`simulacao-detalhes-${simIndex}`);
