@@ -4444,17 +4444,6 @@ export default function App() {
                   />
                 </div>
               )}
-              {adminToken && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Mês (%)</label>
-                  <input 
-                    type="number" 
-                    value={simulacao.taxaJuros} 
-                    onChange={(e) => setSimulacao({...simulacao, taxaJuros: e.target.value})}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
-                  />
-                </div>
-              )}
             </div>
             
             {adminToken ? (
