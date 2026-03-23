@@ -4393,11 +4393,48 @@ export default function App() {
               </div>
             </div>
             <h1 className="text-2xl font-bold text-slate-800 mb-2 mt-4">Simulação de Empréstimo</h1>
-            <p className="text-slate-500">Faça uma simulação antes de realizar o seu cadastro.</p>
+            <p className="text-slate-500">
+              {!selectedClient && !adminToken 
+                ? "Acesso restrito para clientes cadastrados."
+                : "Preencha os dados abaixo para solicitar sua simulação."}
+            </p>
           </div>
           
           <div className="p-8 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {!selectedClient && !adminToken ? (
+              <div className="text-center py-8">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-yellow-100 text-yellow-600 mb-6">
+                  <UserPlus size={40} />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-4">Faça seu cadastro primeiro</h3>
+                <p className="text-slate-600 max-w-md mx-auto mb-8 text-lg">
+                  Para realizar uma simulação de empréstimo, é necessário ter um cadastro em nosso sistema. Se você já é cliente, faça login com seu CPF.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                  <button 
+                    onClick={() => {
+                      setView('form');
+                      setSelectedClient(null);
+                      setFormData(initialFormData);
+                      setCategorizedFiles({});
+                    }}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 text-lg"
+                  >
+                    <UserPlus size={24} />
+                    Fazer Cadastro
+                  </button>
+                  <button 
+                    onClick={() => setView('client_login')}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-4 px-8 rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 border border-slate-300 text-lg"
+                  >
+                    <User size={24} />
+                    Já sou cliente
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Valor Solicitado (R$)</label>
                 <input 
@@ -4541,6 +4578,8 @@ export default function App() {
                   </button>
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         </div>
