@@ -1058,7 +1058,13 @@ export default function App() {
       }
       setSelectedClient(updatedClient);
       setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
-      setClientActionMessage('Sua resposta foi enviada com sucesso, aguarde o contato da nossa equipe');
+      
+      if (accepted) {
+        setClientActionMessage('Caro cliente, agora vá até nosso WhatsApp, informe que concluiu e mande a chave do PIx');
+      } else {
+        setClientActionMessage('Caro cliente, lamentamos não poder atendê-lo, até uma próxima oportunidade');
+      }
+      
       console.log("Client acceptance updated successfully.");
     } catch (error: any) {
       console.error("Erro ao atualizar aceite do cliente:", error);
@@ -1672,8 +1678,12 @@ export default function App() {
                   </div>
                   
                   {clientActionMessage && (
-                    <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2">
-                      <CheckCircle2 size={20} />
+                    <div className={`mt-4 p-4 rounded-xl flex items-center gap-2 border ${
+                      clientActionMessage.includes('lamentamos') 
+                        ? 'bg-blue-50 border-blue-200 text-blue-700' 
+                        : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    }`}>
+                      {clientActionMessage.includes('lamentamos') ? <Info size={20} /> : <CheckCircle2 size={20} />}
                       <p>{clientActionMessage}</p>
                     </div>
                   )}
