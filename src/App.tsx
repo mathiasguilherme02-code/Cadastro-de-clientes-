@@ -439,7 +439,7 @@ export default function App() {
       return client.statusManual;
     }
 
-    const clientSims = client.simulacoes?.filter((s: any) => s.status === 'aprovado' && !s.arquivado) || [];
+    const clientSims = client.simulacoes?.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado) || [];
     let worstStatus = 'sem_pendencias';
 
     const hoje = new Date();
@@ -489,7 +489,7 @@ export default function App() {
     if (!valor || isNaN(valor)) return;
 
     const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
-    const taxa = parseFloat(adminSettings.taxaJuros) || 1;
+    const taxa = parseFloat(simulacao.taxaJuros) || parseFloat(adminSettings.taxaJuros) || 1;
     const isMensal = true; // Fixado mensalmente
     
     let diasTotais = 30;
@@ -768,7 +768,12 @@ export default function App() {
       id: generateUUID(),
       dataCadastro: getLocalISODateTime(),
       arquivos: fileUrls,
-      simulacoes: simulacao.valorSolicitado ? [{ ...simulacao, status: 'pendente', dataCriacao: getLocalISODateTime() }] : []
+      simulacoes: simulacao.valorSolicitado ? [{ 
+        ...simulacao, 
+        status: adminToken ? 'aprovado' : 'pendente', 
+        clientAccepted: adminToken ? 'sim' : undefined,
+        dataCriacao: getLocalISODateTime() 
+      }] : []
     };
 
     try {
@@ -910,7 +915,7 @@ export default function App() {
 
     if (!adminToken) {
       const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-      const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
+      const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado);
       const hasBlockingLoan = activeLoans.some((s: any) => {
         const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
         return unpaidCount > 2;
@@ -923,7 +928,12 @@ export default function App() {
     }
 
     const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const novaSimulacao = { ...simToUse, status: 'pendente', dataCriacao: getLocalISODateTime() };
+    const novaSimulacao = { 
+      ...simToUse, 
+      status: adminToken ? 'aprovado' : 'pendente', 
+      clientAccepted: adminToken ? 'sim' : undefined,
+      dataCriacao: getLocalISODateTime() 
+    };
     const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
     
     if (simToUse.isRenegociacao && simToUse.renegociadoFromSimIndices && simToUse.renegociadoFromSimIndices.length > 0) {
@@ -1452,7 +1462,7 @@ export default function App() {
               )}
               <button 
                 onClick={() => {
-                  const activeLoans = clientSimulacoes.filter((s: any) => s.status === 'aprovado' || !s.status);
+                  const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado);
                   const hasBlockingLoan = activeLoans.some((s: any) => {
                     const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
                     return unpaidCount > 2;
@@ -1561,14 +1571,20 @@ export default function App() {
                       )}
                       
                       {sim.clientAccepted === 'sim' && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-8 text-center">
-                          <p className="text-emerald-700 font-medium">Você aceitou esta proposta.</p>
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-8 text-center">
+                          <h3 className="text-xl font-bold text-emerald-800 mb-2">Proposta Aceita!</h3>
+                          <p className="text-emerald-700 font-medium">
+                            Você aceitou esta proposta. Por favor, vá até nosso WhatsApp, informe que concluiu e mande a chave do PIx.
+                          </p>
                         </div>
                       )}
 
                       {sim.clientAccepted === 'nao' && (
-                        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 text-center">
-                          <p className="text-red-700 font-medium">Você recusou esta proposta.</p>
+                        <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
+                          <h3 className="text-xl font-bold text-red-800 mb-2">Proposta Recusada</h3>
+                          <p className="text-red-700 font-medium">
+                            Você recusou esta proposta. Lamentamos não poder atendê-lo, até uma próxima oportunidade.
+                          </p>
                         </div>
                       )}
 
@@ -2381,7 +2397,7 @@ export default function App() {
     }
 
     const qtd = editSimData.prazo === 'única' ? 1 : parseInt(editSimData.quantidade) || 1;
-    const taxa = parseFloat(editSimData.taxaJuros) || 1;
+    const taxa = parseFloat(editSimData.taxaJuros) || parseFloat(adminSettings.taxaJuros) || 1;
     const isMensal = true; // Fixado mensalmente
     
     let diasTotais = 30;
@@ -2523,6 +2539,13 @@ export default function App() {
   const handleAprovarSimulacao = async (simIndex: number, aprovar: boolean) => {
       if (!selectedClient) return;
       
+      const simulacao = selectedClient.simulacoes[simIndex];
+      
+      if (aprovar && (!simulacao.parcelas || simulacao.parcelas.length === 0)) {
+        alert('Por favor, edite a simulação para definir a taxa de juros e gerar as parcelas antes de aprovar.');
+        return;
+      }
+
       const updatedSimulacoes = [...selectedClient.simulacoes];
       updatedSimulacoes[simIndex] = {
         ...updatedSimulacoes[simIndex],
@@ -4421,6 +4444,17 @@ export default function App() {
                   />
                 </div>
               )}
+              {adminToken && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Taxa de Juros ao Mês (%)</label>
+                  <input 
+                    type="number" 
+                    value={simulacao.taxaJuros} 
+                    onChange={(e) => setSimulacao({...simulacao, taxaJuros: e.target.value})}
+                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                  />
+                </div>
+              )}
             </div>
             
             {adminToken ? (
@@ -4442,59 +4476,13 @@ export default function App() {
                     return;
                   }
                   
-                  // Calculate installments synchronously
-                  const valor = parseFloat(simulacao.valorSolicitado);
-                  const qtd = simulacao.prazo === 'única' ? 1 : parseInt(simulacao.quantidade) || 1;
-                  const taxa = parseFloat(adminSettings.taxaJuros) || 1;
-                  const isMensal = true;
-                  
-                  let diasTotais = 30;
-                  let dataAtual = new Date();
-                  dataAtual.setHours(0, 0, 0, 0);
-
-                  if (simulacao.prazo === 'dia') diasTotais = qtd;
-                  else if (simulacao.prazo === 'semanal') diasTotais = qtd * 7;
-                  else if (simulacao.prazo === 'quinzenal') diasTotais = qtd * 15;
-                  else if (simulacao.prazo === 'mensal') diasTotais = qtd * 30;
-                  else if (simulacao.prazo === 'única') {
-                    const dataVenc = parseLocalDate(simulacao.dataVencimentoUnica);
-                    dataVenc.setHours(0, 0, 0, 0);
-                    const diffTime = dataVenc.getTime() - dataAtual.getTime();
-                    diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
-                  }
-
-                  const fatorTempo = isMensal ? (diasTotais / 30) : diasTotais;
-                  const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
-                  const valorParcela = valorTotal / qtd;
-
-                  const novasParcelas = [];
-                  for (let i = 1; i <= qtd; i++) {
-                    let dataVencimento = new Date(dataAtual);
-                    if (simulacao.prazo === 'dia') {
-                      dataVencimento.setDate(dataVencimento.getDate() + i);
-                    } else if (simulacao.prazo === 'semanal') {
-                      dataVencimento.setDate(dataVencimento.getDate() + (i * 7));
-                    } else if (simulacao.prazo === 'quinzenal') {
-                      dataVencimento.setDate(dataVencimento.getDate() + (i * 15));
-                    } else if (simulacao.prazo === 'mensal') {
-                      dataVencimento.setMonth(dataVencimento.getMonth() + i);
-                    } else if (simulacao.prazo === 'única') {
-                      dataVencimento = parseLocalDate(simulacao.dataVencimentoUnica);
-                    }
-                    novasParcelas.push({
-                      numero: i,
-                      dataVencimento: getLocalISODate(dataVencimento),
-                      valor: valorParcela,
-                      paga: false
-                    });
-                  }
-
                   const novaSimulacao = {
                     ...simulacao,
-                    taxaJuros: adminSettings.taxaJuros,
-                    taxaAtrasoDia: adminSettings.taxaAtrasoDia,
-                    tipoTaxa: adminSettings.tipoTaxa || 'diaria',
-                    parcelas: novasParcelas
+                    taxaJuros: '',
+                    taxaAtrasoDia: '',
+                    tipoTaxa: '',
+                    parcelas: [],
+                    status: 'pendente'
                   };
 
                   setSimulacao(novaSimulacao);
