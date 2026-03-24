@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check, MessageCircle, Send, MessageSquare } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -89,7 +89,7 @@ export default function App() {
     if (params.get('admin') === 'true') return 'admin_login';
     return 'welcome';
   });
-  const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa'>('clientes');
+  const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa' | 'mensagens'>('clientes');
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [fluxoMonth, setFluxoMonth] = useState('all'); // 'all' or '01' to '12'
@@ -157,6 +157,63 @@ export default function App() {
     dataVencimentoUnica: ''
   });
 
+  // Chat State
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [adminChats, setAdminChats] = useState<any[]>([]);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatMessages, isChatOpen]);
+
+  const fetchChats = async () => {
+    if (!adminToken) return;
+    try {
+      const res = await fetch('/api/chats', {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      if (res.ok) {
+        const chats = await res.json();
+        setAdminChats(chats);
+        const unread = chats.reduce((acc: number, chat: any) => acc + (chat.unreadAdmin || 0), 0);
+        setUnreadChatCount(unread);
+      }
+    } catch (error) {
+      console.error("Error fetching chats:", error);
+    }
+  };
+
+  const fetchMessages = async (clientId: string) => {
+    try {
+      const res = await fetch(`/api/chat/${clientId}`);
+      if (res.ok) {
+        const messages = await res.json();
+        setChatMessages(messages);
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };
+
+  const markChatAsRead = async (clientId: string, reader: 'admin' | 'client') => {
+    try {
+      await fetch(`/api/chat/${clientId}/read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reader })
+      });
+    } catch (error) {
+      console.error("Error marking chat as read:", error);
+    }
+  };
+
   useEffect(() => {
     // Fetch initial data
     const fetchData = async () => {
@@ -178,6 +235,7 @@ export default function App() {
           } else {
             setAdminToken('');
           }
+          fetchChats();
         }
       } catch (error) {
         console.error("Erro ao buscar dados:", error);
@@ -197,6 +255,8 @@ export default function App() {
         } else if (data.type === 'UPDATE_CLIENTS') {
           // We trigger a custom event that the rest of the app can listen to
           window.dispatchEvent(new CustomEvent('app:update_clients'));
+        } else if (data.type === 'CHAT_UPDATE' || data.type === 'CHAT_READ') {
+          window.dispatchEvent(new CustomEvent('app:chat_update', { detail: { ...data.payload, type: data.type } }));
         }
       } catch (e) {
         console.error("Error parsing SSE message:", e);
@@ -206,7 +266,53 @@ export default function App() {
     return () => {
       eventSource.close();
     };
-  }, []);
+  }, [adminToken]);
+
+  useEffect(() => {
+    const handleChatUpdate = (e: any) => {
+      const { clientId, type } = e.detail;
+      if (adminToken) {
+        fetchChats();
+      }
+      if (selectedClient && selectedClient.id === clientId) {
+        fetchMessages(clientId);
+        if (type === 'CHAT_UPDATE') {
+          if (adminToken && adminTab === 'mensagens') {
+            markChatAsRead(clientId, 'admin');
+          } else if (!adminToken && isChatOpen) {
+            markChatAsRead(clientId, 'client');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('app:chat_update', handleChatUpdate);
+    return () => window.removeEventListener('app:chat_update', handleChatUpdate);
+  }, [adminToken, selectedClient, isChatOpen, adminTab]);
+
+  useEffect(() => {
+    if (view === 'client_dashboard' && selectedClient) {
+      fetchMessages(selectedClient.id);
+    }
+  }, [view, selectedClient]);
+
+  const sendMessage = async (clientId: string, text: string, sender: 'admin' | 'client', clientName?: string) => {
+    if (!text.trim()) return;
+    try {
+      const res = await fetch(`/api/chat/${clientId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, sender, clientName })
+      });
+      if (res.ok) {
+        setChatInput('');
+        fetchMessages(clientId);
+        if (adminToken) fetchChats();
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
 
   const [formData, setFormData] = useState(initialFormData);
   const [categorizedFiles, setCategorizedFiles] = useState<Record<string, File>>({});
@@ -1749,6 +1855,86 @@ export default function App() {
             }))}
           </div>
         </div>
+
+        {/* Client Chat UI */}
+        <div className="fixed bottom-6 right-6 z-50">
+          {!isChatOpen ? (
+            <button
+              onClick={() => {
+                setIsChatOpen(true);
+                fetchMessages(selectedClient.id);
+                markChatAsRead(selectedClient.id, 'client');
+              }}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white p-4 rounded-full shadow-lg transition-transform hover:scale-105 relative"
+            >
+              <MessageCircle size={28} />
+              {chatMessages.some(m => m.sender === 'admin' && !m.read) && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white">
+                  {chatMessages.filter(m => m.sender === 'admin' && !m.read).length}
+                </span>
+              )}
+            </button>
+          ) : (
+            <div className="bg-white rounded-2xl shadow-2xl w-80 sm:w-96 h-[500px] flex flex-col border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5">
+              <div className="bg-slate-800 text-white p-4 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <MessageSquare size={20} className="text-yellow-400" />
+                  <h3 className="font-bold">Suporte</h3>
+                </div>
+                <button onClick={() => setIsChatOpen(false)} className="text-slate-300 hover:text-white transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="flex-1 p-4 overflow-y-auto bg-slate-50 flex flex-col gap-3">
+                {chatMessages.length === 0 ? (
+                  <div className="text-center text-slate-500 my-auto">
+                    <MessageCircle size={48} className="mx-auto text-slate-300 mb-2" />
+                    <p>Envie uma mensagem para nossa equipe de suporte.</p>
+                  </div>
+                ) : (
+                  chatMessages.map((msg, idx) => (
+                    <div key={idx} className={`flex flex-col max-w-[85%] ${msg.sender === 'client' ? 'self-end items-end' : 'self-start items-start'}`}>
+                      <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'client' ? 'bg-yellow-500 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
+                        {msg.text}
+                      </div>
+                      <span className="text-[10px] text-slate-400 mt-1 px-1">
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              
+              <div className="p-3 bg-white border-t border-slate-200">
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    sendMessage(selectedClient.id, chatInput, 'client', selectedClient.nomeCompleto);
+                  }}
+                  className="flex gap-2"
+                >
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder="Digite sua mensagem..."
+                    className="flex-1 bg-slate-100 border-none rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-yellow-500 outline-none"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!chatInput.trim()}
+                    className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-slate-300 text-white p-2 rounded-full transition-colors flex-shrink-0"
+                  >
+                    <Send size={18} />
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+
         {renderModals()}
       </div>
     );
@@ -2712,6 +2898,17 @@ export default function App() {
             >
               Fluxo de Caixa
             </button>
+            <button
+              onClick={() => { setAdminTab('mensagens'); setSelectedClient(null); setSearchTerm(''); }}
+              className={`pb-3 px-4 text-sm font-medium transition-colors relative ${adminTab === 'mensagens' ? 'border-b-2 border-yellow-500 text-yellow-600' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Mensagens
+              {unreadChatCount > 0 && (
+                <span className="absolute top-0 right-0 -mt-1 -mr-2 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                  {unreadChatCount}
+                </span>
+              )}
+            </button>
           </div>
 
           {!selectedClient && adminTab === 'clientes' && (
@@ -2780,7 +2977,7 @@ export default function App() {
             </div>
           )}
 
-          {selectedClient ? (
+          {selectedClient && adminTab !== 'mensagens' ? (
             <div className="bg-white rounded-2xl shadow-xl overflow-hidden" id="pdf-content">
               <div className="bg-slate-800 px-8 py-6 text-white flex justify-between items-center print:bg-slate-800 print:text-white">
                 <div>
@@ -2799,6 +2996,17 @@ export default function App() {
                   <p className="text-slate-300">CPF: {selectedClient.cpf} | Cadastrado em: {selectedClient.dataCadastro}</p>
                 </div>
                 <div className="flex gap-3 print:hidden">
+                  <button 
+                    onClick={() => {
+                      setAdminTab('mensagens');
+                      fetchMessages(selectedClient.id);
+                      markChatAsRead(selectedClient.id, 'admin');
+                    }}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <MessageSquare size={18} />
+                    Mensagem
+                  </button>
                   <button 
                     onClick={() => {
                       setSimulacao({
@@ -4226,6 +4434,146 @@ export default function App() {
                   </div>
                 ) : (
                   <p className="text-slate-500 text-center py-4">Nenhuma movimentação registrada neste ano.</p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {adminTab === 'mensagens' && (
+            <div className="bg-white rounded-2xl shadow-xl p-6 mb-8 flex flex-col md:flex-row gap-6 h-[600px]">
+              {/* Chat List */}
+              <div className="w-full md:w-1/3 border-r border-slate-200 pr-6 flex flex-col">
+                <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <MessageSquare size={24} className="text-yellow-500" />
+                  Conversas
+                </h2>
+                <div className="flex-1 overflow-y-auto space-y-2">
+                  {(() => {
+                    let displayChats = [...adminChats];
+                    if (selectedClient && !displayChats.find(c => c.id === selectedClient.id)) {
+                      displayChats.unshift({
+                        id: selectedClient.id,
+                        clientName: selectedClient.nomeCompleto,
+                        lastMessage: 'Nova conversa...',
+                        lastMessageTimestamp: new Date().toISOString(),
+                        lastSender: '',
+                        unreadAdmin: 0,
+                        unreadClient: 0
+                      });
+                    }
+                    return displayChats.length === 0 ? (
+                      <p className="text-slate-500 text-center py-4 text-sm">Nenhuma conversa encontrada.</p>
+                    ) : (
+                      displayChats.map(chat => (
+                      <button
+                        key={chat.id}
+                        onClick={() => {
+                          const client = clients.find(c => c.id === chat.id);
+                          if (client) {
+                            setSelectedClient(client);
+                            fetchMessages(chat.id);
+                            markChatAsRead(chat.id, 'admin');
+                          }
+                        }}
+                        className={`w-full text-left p-3 rounded-xl transition-colors flex items-start gap-3 ${selectedClient?.id === chat.id ? 'bg-yellow-50 border border-yellow-200' : 'hover:bg-slate-50 border border-transparent'}`}
+                      >
+                        <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0 text-slate-600 font-bold">
+                          {chat.clientName ? chat.clientName.charAt(0).toUpperCase() : <User size={20} />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-baseline mb-1">
+                            <h4 className="font-bold text-slate-800 truncate text-sm">{chat.clientName || 'Cliente'}</h4>
+                            <span className="text-[10px] text-slate-400 whitespace-nowrap ml-2">
+                              {chat.lastMessageTimestamp ? new Date(chat.lastMessageTimestamp).toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <p className={`text-xs truncate ${chat.unreadAdmin > 0 ? 'font-bold text-slate-800' : 'text-slate-500'}`}>
+                            {chat.lastSender === 'admin' ? 'Você: ' : ''}{chat.lastMessage}
+                          </p>
+                        </div>
+                        {chat.unreadAdmin > 0 && (
+                          <div className="w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-2">
+                            {chat.unreadAdmin}
+                          </div>
+                        )}
+                      </button>
+                    ))
+                  );
+                })()}
+                </div>
+              </div>
+
+              {/* Chat Window */}
+              <div className="flex-1 flex flex-col bg-slate-50 rounded-xl overflow-hidden border border-slate-200">
+                {selectedClient ? (
+                  <>
+                    <div className="bg-white border-b border-slate-200 p-4 flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-700 font-bold">
+                          {selectedClient.nomeCompleto.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-800">{selectedClient.nomeCompleto}</h3>
+                          <p className="text-xs text-slate-500">CPF: {selectedClient.cpf}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => setSelectedClient(null)} className="text-slate-400 hover:text-slate-600">
+                        <X size={20} />
+                      </button>
+                    </div>
+                    
+                    <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
+                      {chatMessages.length === 0 ? (
+                        <div className="text-center text-slate-500 my-auto">
+                          <MessageCircle size={48} className="mx-auto text-slate-300 mb-2" />
+                          <p>Nenhuma mensagem nesta conversa.</p>
+                        </div>
+                      ) : (
+                        chatMessages.map((msg, idx) => (
+                          <div key={idx} className={`flex flex-col max-w-[75%] ${msg.sender === 'admin' ? 'self-end items-end' : 'self-start items-start'}`}>
+                            <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'admin' ? 'bg-yellow-500 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
+                              {msg.text}
+                            </div>
+                            <span className="text-[10px] text-slate-400 mt-1 px-1">
+                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                    
+                    <div className="p-4 bg-white border-t border-slate-200">
+                      <form 
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          sendMessage(selectedClient.id, chatInput, 'admin', selectedClient.nomeCompleto);
+                        }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          placeholder="Digite sua mensagem para o cliente..."
+                          className="flex-1 bg-slate-100 border border-slate-200 rounded-full px-4 py-2 text-sm focus:ring-2 focus:ring-yellow-500 outline-none"
+                        />
+                        <button 
+                          type="submit"
+                          disabled={!chatInput.trim()}
+                          className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-slate-300 text-white p-2 rounded-full transition-colors flex-shrink-0"
+                        >
+                          <Send size={20} />
+                        </button>
+                      </form>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                    <MessageSquare size={64} className="mb-4 text-slate-300" />
+                    <p className="text-lg font-medium text-slate-500">Selecione uma conversa</p>
+                    <p className="text-sm">Escolha um cliente na lista ao lado para ver as mensagens.</p>
+                  </div>
                 )}
               </div>
             </div>

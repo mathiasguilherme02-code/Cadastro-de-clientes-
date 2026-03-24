@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy } from "firebase/firestore";
+import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, addDoc, increment, writeBatch } from "firebase/firestore";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import dotenv from 'dotenv';
 
@@ -313,6 +313,105 @@ app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error deleting client:", error);
     res.status(500).json({ error: "Falha ao excluir cliente" });
+  }
+});
+
+// Get Chat Messages
+app.get("/api/chat/:clientId", async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const q = query(collection(db, "chats", clientId, "messages"), orderBy("timestamp", "asc"));
+    const querySnapshot = await getDocs(q);
+    const messages = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(messages);
+  } catch (error) {
+    console.error("Error fetching chat:", error);
+    res.status(500).json({ error: "Falha ao buscar mensagens" });
+  }
+});
+
+// Send Chat Message
+app.post("/api/chat/:clientId", async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { text, sender, clientName } = req.body; // sender: 'admin' | 'client'
+    const message = {
+      text,
+      sender,
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    
+    // Add to subcollection
+    const docRef = await addDoc(collection(db, "chats", clientId, "messages"), message);
+    
+    // Also update a summary document for the admin to see unread counts
+    const chatDocRef = doc(db, "chats", clientId);
+    const chatDoc = await getDoc(chatDocRef);
+    
+    const updateData: any = {
+      lastMessage: text,
+      lastMessageTimestamp: message.timestamp,
+      lastSender: sender,
+      unreadAdmin: sender === 'client' ? increment(1) : 0,
+      unreadClient: sender === 'admin' ? increment(1) : 0,
+    };
+    
+    if (clientName) {
+      updateData.clientName = clientName;
+    }
+
+    await setDoc(chatDocRef, updateData, { merge: true });
+
+    broadcastUpdate('CHAT_UPDATE', { clientId });
+    res.json({ id: docRef.id, ...message });
+  } catch (error) {
+    console.error("Error sending message:", error);
+    res.status(500).json({ error: "Falha ao enviar mensagem" });
+  }
+});
+
+// Mark messages as read
+app.put("/api/chat/:clientId/read", async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { reader } = req.body; // 'admin' | 'client'
+    
+    // Reset unread count
+    const updateData = reader === 'admin' ? { unreadAdmin: 0 } : { unreadClient: 0 };
+    await setDoc(doc(db, "chats", clientId), updateData, { merge: true });
+    
+    // Update individual messages
+    const messagesRef = collection(db, "chats", clientId, "messages");
+    const q = query(messagesRef, where("sender", "==", reader === 'admin' ? 'client' : 'admin'), where("read", "==", false));
+    const querySnapshot = await getDocs(q);
+    
+    if (!querySnapshot.empty) {
+      const batch = writeBatch(db);
+      querySnapshot.forEach((doc) => {
+        batch.update(doc.ref, { read: true });
+      });
+      await batch.commit();
+    }
+    
+    broadcastUpdate('CHAT_READ', { clientId, reader });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error marking as read:", error);
+    res.status(500).json({ error: "Falha ao atualizar status" });
+  }
+});
+
+// Get all chats summary for admin
+app.get("/api/chats", requireAdmin, async (req, res) => {
+  try {
+    const q = query(collection(db, "chats"), orderBy("lastMessageTimestamp", "desc"));
+    const querySnapshot = await getDocs(q);
+    const chats = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(chats);
+  } catch (error) {
+    console.error("Error fetching chats:", error);
+    res.status(500).json({ error: "Falha ao buscar chats" });
   }
 });
 
