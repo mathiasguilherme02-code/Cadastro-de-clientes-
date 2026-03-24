@@ -1561,7 +1561,7 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                      {!sim.clientAccepted && (
+                      {sim.status !== 'renegociado' && !sim.clientAccepted && (
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-center">
                           <h3 className="text-xl font-bold text-blue-800 mb-2">Proposta Aprovada!</h3>
                           <p className="text-blue-700 mb-4">
@@ -1570,7 +1570,7 @@ export default function App() {
                         </div>
                       )}
                       
-                      {sim.clientAccepted === 'sim' && (
+                      {sim.status !== 'renegociado' && sim.clientAccepted === 'sim' && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-6 mb-8 text-center">
                           <h3 className="text-xl font-bold text-emerald-800 mb-2">Proposta Aceita!</h3>
                           <p className="text-emerald-700 font-medium">
@@ -1579,11 +1579,20 @@ export default function App() {
                         </div>
                       )}
 
-                      {sim.clientAccepted === 'nao' && (
+                      {sim.status !== 'renegociado' && sim.clientAccepted === 'nao' && (
                         <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-8 text-center">
                           <h3 className="text-xl font-bold text-red-800 mb-2">Proposta Recusada</h3>
                           <p className="text-red-700 font-medium">
                             Você recusou esta proposta. Lamentamos não poder atendê-lo, até uma próxima oportunidade.
+                          </p>
+                        </div>
+                      )}
+
+                      {sim.status === 'renegociado' && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mb-8 text-center">
+                          <h3 className="text-xl font-bold text-slate-800 mb-2">Empréstimo Renegociado</h3>
+                          <p className="text-slate-600 font-medium">
+                            Este empréstimo foi renegociado e substituído por um novo contrato.
                           </p>
                         </div>
                       )}
@@ -1987,7 +1996,11 @@ export default function App() {
         })
       )
     ).filter(p => !p.paga)
-     .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento));
+     .sort((a, b) => {
+       const dateCompare = a.dataVencimento.localeCompare(b.dataVencimento);
+       if (dateCompare !== 0) return dateCompare;
+       return a.clientName.localeCompare(b.clientName);
+     });
 
     const groupedCronograma = cronogramaParcelas.reduce((acc: any, p: any) => {
       if (!acc[p.dataVencimento]) {
@@ -2071,7 +2084,15 @@ export default function App() {
     ];
 
     // Sort all transactions by date to calculate running balance
-    const sortedAllTransactions = [...unifiedTransactions].sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime());
+    const sortedAllTransactions = [...unifiedTransactions].sort((a: any, b: any) => {
+      const dateA = new Date(a.data).getTime();
+      const dateB = new Date(b.data).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      
+      const descA = a.descricao || '';
+      const descB = b.descricao || '';
+      return descA.localeCompare(descB);
+    });
     let runningBalance = 0;
     const transactionsWithBalance = sortedAllTransactions.map(t => {
       if (['entrada', 'aporte'].includes(t.tipo)) {
@@ -4115,7 +4136,14 @@ export default function App() {
                     {Object.entries(
                       [...transactionsWithBalance]
                         .filter((t: any) => t.data.startsWith(fluxoFilter) && (fluxoTypeFilter === 'all' || t.tipo === fluxoTypeFilter))
-                        .sort((a: any, b: any) => new Date(a.data).getTime() - new Date(b.data).getTime())
+                        .sort((a: any, b: any) => {
+                          const dateA = new Date(a.data).getTime();
+                          const dateB = new Date(b.data).getTime();
+                          if (dateA !== dateB) return dateA - dateB;
+                          const descA = a.descricao || '';
+                          const descB = b.descricao || '';
+                          return descA.localeCompare(descB);
+                        })
                         .reduce((acc: any, t: any) => {
                           const dateKey = t.data.split('T')[0];
                           if (!acc[dateKey]) acc[dateKey] = [];
