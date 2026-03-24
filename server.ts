@@ -415,6 +415,34 @@ app.get("/api/chats", requireAdmin, async (req, res) => {
   }
 });
 
+// Delete Chat
+app.delete("/api/chat/:clientId", requireAdmin, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Delete all messages in the subcollection
+    const messagesRef = collection(db, "chats", clientId, "messages");
+    const querySnapshot = await getDocs(messagesRef);
+    
+    if (!querySnapshot.empty) {
+      const batch = writeBatch(db);
+      querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+    }
+    
+    // Delete the chat summary document
+    await deleteDoc(doc(db, "chats", clientId));
+    
+    broadcastUpdate('CHAT_UPDATE', { clientId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting chat:", error);
+    res.status(500).json({ error: "Falha ao apagar conversa" });
+  }
+});
+
 // Error handler middleware
 app.use((err: any, req: any, res: any, next: any) => {
   if (err.type === 'entity.too.large') {

@@ -214,6 +214,27 @@ export default function App() {
     }
   };
 
+  const deleteChat = async (clientId: string) => {
+    if (!adminToken) return;
+    if (!window.confirm("Tem certeza que deseja apagar todo o histórico desta conversa? Esta ação não pode ser desfeita.")) return;
+    
+    try {
+      const res = await fetch(`/api/chat/${clientId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      if (res.ok) {
+        setChatMessages([]);
+        fetchChats();
+        if (selectedClient && selectedClient.id === clientId) {
+          setSelectedClient(null);
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting chat:", error);
+    }
+  };
+
   useEffect(() => {
     // Fetch initial data
     const fetchData = async () => {
@@ -4517,9 +4538,18 @@ export default function App() {
                           <p className="text-xs text-slate-500">CPF: {selectedClient.cpf}</p>
                         </div>
                       </div>
-                      <button onClick={() => setSelectedClient(null)} className="text-slate-400 hover:text-slate-600">
-                        <X size={20} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => deleteChat(selectedClient.id)} 
+                          className="text-slate-400 hover:text-red-500 transition-colors"
+                          title="Apagar conversa"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                        <button onClick={() => setSelectedClient(null)} className="text-slate-400 hover:text-slate-600">
+                          <X size={20} />
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
