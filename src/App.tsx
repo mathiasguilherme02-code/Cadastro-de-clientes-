@@ -583,7 +583,7 @@ export default function App() {
       return client.statusManual;
     }
 
-    const clientSims = client.simulacoes?.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado) || [];
+    const clientSims = client.simulacoes?.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado) || [];
     let worstStatus = 'sem_pendencias';
 
     const hoje = new Date();
@@ -617,7 +617,12 @@ export default function App() {
       const hasPendente = client.simulacoes?.some((s: any) => s.status === 'pendente' && !s.arquivado);
       if (hasPendente) return 'em_analise';
 
-      const hasAguardandoAceite = client.simulacoes?.some((s: any) => s.status === 'aprovado' && s.clientAccepted !== 'sim' && !s.arquivado);
+      const hasAguardandoAceite = client.simulacoes?.some((s: any) => 
+        s.status === 'aprovado' && 
+        s.clientAccepted !== 'sim' && 
+        !s.arquivado &&
+        !s.parcelas?.some((p: any) => p.paga)
+      );
       if (hasAguardandoAceite) return 'aguardando_aceite';
 
       const hasReprovado = client.simulacoes?.some((s: any) => s.status === 'reprovado' && !s.arquivado);
@@ -1073,7 +1078,7 @@ export default function App() {
 
     if (!adminToken) {
       const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-      const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado);
+      const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado);
       const hasBlockingLoan = activeLoans.some((s: any) => {
         const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
         return unpaidCount > 2;
@@ -1620,7 +1625,7 @@ export default function App() {
               )}
               <button 
                 onClick={() => {
-                  const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted === 'sim') || !s.status) && !s.arquivado);
+                  const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado);
                   const hasBlockingLoan = activeLoans.some((s: any) => {
                     const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
                     return unpaidCount > 2;
@@ -1720,7 +1725,7 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                      {sim.status === 'aprovado' && !sim.clientAccepted && (
+                      {sim.status === 'aprovado' && !sim.clientAccepted && !sim.parcelas?.some((p: any) => p.paga) && (
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-center">
                           <h3 className="text-xl font-bold text-blue-800 mb-2">Proposta Aprovada!</h3>
                           <p className="text-blue-700 mb-4">
@@ -1878,7 +1883,7 @@ export default function App() {
                     </div>
                   )}
                   
-                  {sim.status === 'aprovado' && !sim.clientAccepted && (
+                  {sim.status === 'aprovado' && !sim.clientAccepted && !sim.parcelas?.some((p: any) => p.paga) && (
                     <div className="mt-8 pt-6 border-t border-slate-200">
                       <div className="flex gap-4">
                         <button
@@ -2920,17 +2925,38 @@ export default function App() {
             </div>
           </div>
 
-          {clients.filter(c => (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).some((s: any) => s.status === 'pendente')).length > 0 && (
-            <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm flex items-start gap-3">
-              <AlertCircle className="text-yellow-600 mt-0.5 flex-shrink-0" size={20} />
-              <div>
-                <h3 className="text-yellow-800 font-bold">Atenção: Empréstimos Pendentes</h3>
-                <p className="text-yellow-700 mt-1">
-                  Existem <strong>{clients.filter(c => (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).some((s: any) => s.status === 'pendente')).length}</strong> cliente(s) com solicitações de empréstimo aguardando aprovação.
-                </p>
-              </div>
-            </div>
-          )}
+          {(() => {
+            const pendingClients = clients.filter(c => (c.simulacoes || (c.simulacao ? [c.simulacao] : [])).some((s: any) => s.status === 'pendente'));
+            if (pendingClients.length > 0) {
+              return (
+                <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg shadow-sm flex items-start gap-3">
+                  <AlertCircle className="text-yellow-600 mt-0.5 flex-shrink-0" size={20} />
+                  <div className="w-full">
+                    <h3 className="text-yellow-800 font-bold">Atenção: Empréstimos Pendentes</h3>
+                    <p className="text-yellow-700 mt-1 mb-2">
+                      Existem <strong>{pendingClients.length}</strong> solicitação(ões) de empréstimo aguardando aprovação:
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {pendingClients.map(client => (
+                        <button
+                          key={client.id}
+                          onClick={() => {
+                            setAdminTab('clientes');
+                            setSelectedClient(client);
+                          }}
+                          className="text-left bg-white/60 hover:bg-white px-3 py-2 rounded-md border border-yellow-200 text-yellow-800 transition-colors flex justify-between items-center"
+                        >
+                          <span className="font-semibold">{client.nomeCompleto}</span>
+                          <span className="text-sm underline">Analisar solicitação &rarr;</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <div className="flex gap-4 mb-8 border-b border-slate-200 print:hidden">
             <button
