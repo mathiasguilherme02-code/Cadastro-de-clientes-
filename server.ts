@@ -316,6 +316,20 @@ app.delete("/api/clients/:id", requireAdmin, async (req, res) => {
   }
 });
 
+// Restore Client (Protected)
+app.post("/api/clients/:id/restore", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const clientData = req.body;
+    await setDoc(doc(db, "clients", id), clientData);
+    broadcastUpdate('UPDATE_CLIENTS');
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error restoring client:", error);
+    res.status(500).json({ error: "Falha ao restaurar cliente" });
+  }
+});
+
 // Get Chat Messages
 app.get("/api/chat/:clientId", async (req, res) => {
   try {
@@ -455,6 +469,55 @@ app.delete("/api/chat/:clientId", requireAdmin, async (req, res) => {
   } catch (error) {
     console.error("Error deleting chat:", error);
     res.status(500).json({ error: "Falha ao apagar conversa" });
+  }
+});
+
+// Restore Chat
+app.post("/api/chat/:clientId/restore", requireAdmin, async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { chatData, messages } = req.body;
+    
+    if (chatData) {
+      await setDoc(doc(db, "chats", clientId), chatData);
+    }
+    
+    if (messages && messages.length > 0) {
+      const batch = writeBatch(db);
+      messages.forEach((msg: any) => {
+        const msgRef = doc(db, "chats", clientId, "messages", msg.id);
+        batch.set(msgRef, msg);
+      });
+      await batch.commit();
+    }
+    
+    broadcastUpdate('CHAT_UPDATE', { clientId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error restoring chat:", error);
+    res.status(500).json({ error: "Falha ao restaurar conversa" });
+  }
+});
+
+// Restore Message
+app.post("/api/chat/:clientId/messages/:messageId/restore", requireAdmin, async (req, res) => {
+  try {
+    const { clientId, messageId } = req.params;
+    const messageData = req.body;
+    await setDoc(doc(db, "chats", clientId, "messages", messageId), messageData);
+    
+    const chatRef = doc(db, "chats", clientId);
+    await setDoc(chatRef, {
+      lastMessage: messageData.text,
+      lastMessageTimestamp: messageData.timestamp,
+      clientId: clientId
+    }, { merge: true });
+
+    broadcastUpdate('CHAT_UPDATE', { clientId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error restoring message:", error);
+    res.status(500).json({ error: "Falha ao restaurar mensagem" });
   }
 });
 

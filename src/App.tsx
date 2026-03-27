@@ -99,6 +99,71 @@ export default function App() {
   const [adminPassword, setAdminPassword] = useState('');
   const [adminToken, setAdminToken] = useState(() => localStorage.getItem('adminToken') || '');
   const [loginError, setLoginError] = useState('');
+  const [undoState, setUndoState] = useState<{ message: string; revertFn: () => Promise<void>; id: number; } | null>(null);
+
+  const triggerUndo = (message: string, revertFn: () => Promise<void>) => {
+    const id = Date.now();
+    setUndoState({ message, revertFn, id });
+    setTimeout(() => {
+      setUndoState(current => {
+        if (current?.id === id) return null;
+        return current;
+      });
+    }, 10000); // 10 seconds to undo
+  };
+
+  const handleUndo = async () => {
+    if (undoState) {
+      try {
+        await undoState.revertFn();
+        setUndoState(null);
+      } catch (e) {
+        console.error('Erro ao desfazer operação:', e);
+        alert('Erro ao desfazer operação.');
+      }
+    }
+  };
+
+  const updateClientWithUndo = async (updatedClient: any, actionName: string) => {
+    const previousClientState = clients.find(c => c.id === updatedClient.id) || selectedClient;
+    
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
+
+    try {
+      const res = await fetch(`/api/clients/${updatedClient.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(updatedClient)
+      });
+      
+      if (res.ok) {
+        setSelectedClient(updatedClient);
+        if (adminToken) {
+          setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+        }
+        
+        triggerUndo(actionName, async () => {
+          const revertRes = await fetch(`/api/clients/${previousClientState.id}`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify(previousClientState)
+          });
+          if (revertRes.ok) {
+            setSelectedClient(previousClientState);
+            if (adminToken) {
+              setClients(clients.map(c => c.id === previousClientState.id ? previousClientState : c));
+            }
+          }
+        });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`Error during ${actionName}:`, error);
+      return false;
+    }
+  };
 
   useEffect(() => {
     if (adminToken) {
@@ -216,8 +281,10 @@ export default function App() {
 
   const deleteChat = async (clientId: string) => {
     if (!adminToken) return;
-    if (!window.confirm("Tem certeza que deseja apagar todo o histórico desta conversa? Esta ação não pode ser desfeita.")) return;
     
+    const chatToRestore = adminChats.find(c => c.clientId === clientId);
+    const messagesToRestore = [...chatMessages];
+
     try {
       const res = await fetch(`/api/chat/${clientId}`, {
         method: 'DELETE',
@@ -229,6 +296,26 @@ export default function App() {
         if (selectedClient && selectedClient.id === clientId) {
           setSelectedClient(null);
         }
+        
+        triggerUndo('Excluir Conversa', async () => {
+          const revertRes = await fetch(`/api/chat/${clientId}/restore`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify({
+              chatData: chatToRestore,
+              messages: messagesToRestore
+            })
+          });
+          if (revertRes.ok) {
+            fetchChats();
+            if (selectedClient && selectedClient.id === clientId) {
+              fetchMessages(clientId);
+            }
+          }
+        });
       }
     } catch (error) {
       console.error("Error deleting chat:", error);
@@ -237,8 +324,9 @@ export default function App() {
 
   const deleteMessage = async (clientId: string, messageId: string) => {
     if (!adminToken) return;
-    if (!window.confirm("Tem certeza que deseja apagar esta mensagem?")) return;
     
+    const messageToRestore = chatMessages.find(m => m.id === messageId);
+
     try {
       const res = await fetch(`/api/chat/${clientId}/messages/${messageId}`, {
         method: 'DELETE',
@@ -246,6 +334,22 @@ export default function App() {
       });
       if (res.ok) {
         setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+        
+        if (messageToRestore) {
+          triggerUndo('Excluir Mensagem', async () => {
+            const revertRes = await fetch(`/api/chat/${clientId}/messages/${messageId}/restore`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${adminToken}`
+              },
+              body: JSON.stringify(messageToRestore)
+            });
+            if (revertRes.ok) {
+              fetchMessages(clientId);
+            }
+          });
+        }
       }
     } catch (error) {
       console.error("Error deleting message:", error);
@@ -1119,19 +1223,9 @@ export default function App() {
     };
     
     try {
-      const payloadString = JSON.stringify(updatedClient);
-      const payload = payloadString;
+      const success = await updateClientWithUndo(updatedClient, 'Adicionar Empréstimo');
       
-      const response = await fetch(`/api/clients/${selectedClient.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
-        },
-        body: payload
-      });
-      
-      if (!response.ok) {
+      if (!success) {
         alert('Erro ao adicionar empréstimo.');
         return;
       }
@@ -1994,6 +2088,26 @@ export default function App() {
         </div>
 
         {renderModals()}
+        {undoState && (
+          <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 z-50 animate-in slide-in-from-bottom-5">
+            <div className="flex flex-col">
+              <span className="font-medium">{undoState.message}</span>
+              <span className="text-sm text-slate-400">Operação realizada com sucesso.</span>
+            </div>
+            <button
+              onClick={handleUndo}
+              className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Desfazer
+            </button>
+            <button
+              onClick={() => setUndoState(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -2027,16 +2141,7 @@ export default function App() {
         const updatedClient = { ...c, simulacoes: updatedSimulacoes };
         
         // Save to API
-        fetch(`/api/clients/${c.id}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${adminToken}`
-          },
-          body: JSON.stringify(updatedClient)
-        }).catch(err => console.error("Erro ao salvar abatimento:", err));
-
-        setSelectedClient(updatedClient);
+        updateClientWithUndo(updatedClient, 'Adicionar Abatimento');
         return updatedClient;
       }
       return c;
@@ -2068,16 +2173,7 @@ export default function App() {
         const updatedClient = { ...c, simulacoes: updatedSimulacoes };
         
         // Save to API
-        fetch(`/api/clients/${c.id}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${adminToken}`
-          },
-          body: JSON.stringify(updatedClient)
-        }).catch(err => console.error("Erro ao remover abatimento:", err));
-
-        setSelectedClient(updatedClient);
+        updateClientWithUndo(updatedClient, 'Remover Abatimento');
         return updatedClient;
       }
       return c;
@@ -2087,6 +2183,9 @@ export default function App() {
   };
 
   const handleDeleteClient = async (id: string) => {
+    const clientToDeleteData = clients.find(c => c.id === id);
+    if (!clientToDeleteData) return;
+
     try {
       const res = await fetch(`/api/clients/${id}`, {
         method: 'DELETE',
@@ -2101,6 +2200,20 @@ export default function App() {
         if (selectedClient && selectedClient.id === id) {
           setSelectedClient(null);
         }
+        
+        triggerUndo('Excluir Cliente', async () => {
+          const revertRes = await fetch(`/api/clients/${id}/restore`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${adminToken}`
+            },
+            body: JSON.stringify(clientToDeleteData)
+          });
+          if (revertRes.ok) {
+            setClients([...clients, clientToDeleteData]);
+          }
+        });
       } else {
         alert('Erro ao excluir cliente.');
       }
@@ -2780,16 +2893,9 @@ export default function App() {
     };
     
     try {
-      const response = await fetch(`/api/clients/${selectedClient.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
-        },
-        body: JSON.stringify(updatedClient)
-      });
+      const success = await updateClientWithUndo(updatedClient, 'Excluir Empréstimo');
       
-      if (!response.ok) {
+      if (!success) {
         throw new Error('Falha ao excluir empréstimo no servidor');
       }
       
@@ -2823,16 +2929,9 @@ export default function App() {
       };
       
       try {
-        const response = await fetch(`/api/clients/${selectedClient.id}`, {
-          method: 'PUT',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${adminToken}`
-          },
-          body: JSON.stringify(updatedClient)
-        });
+        const success = await updateClientWithUndo(updatedClient, aprovar ? 'Aprovar Empréstimo' : 'Reprovar Empréstimo');
         
-        if (!response.ok) {
+        if (!success) {
           throw new Error('Falha ao atualizar status no servidor');
         }
         
@@ -5060,6 +5159,26 @@ export default function App() {
           </div>
         </div>
         {renderModals()}
+        {undoState && (
+          <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 z-50 animate-in slide-in-from-bottom-5">
+            <div className="flex flex-col">
+              <span className="font-medium">{undoState.message}</span>
+              <span className="text-sm text-slate-400">Operação realizada com sucesso.</span>
+            </div>
+            <button
+              onClick={handleUndo}
+              className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+            >
+              Desfazer
+            </button>
+            <button
+              onClick={() => setUndoState(null)}
+              className="text-slate-400 hover:text-white p-1"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -5530,6 +5649,26 @@ export default function App() {
         </form>
       </div>
       {renderModals()}
+      {undoState && (
+        <div className="fixed bottom-4 right-4 bg-slate-800 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 z-50 animate-in slide-in-from-bottom-5">
+          <div className="flex flex-col">
+            <span className="font-medium">{undoState.message}</span>
+            <span className="text-sm text-slate-400">Operação realizada com sucesso.</span>
+          </div>
+          <button
+            onClick={handleUndo}
+            className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-2 px-4 rounded-lg transition-colors whitespace-nowrap"
+          >
+            Desfazer
+          </button>
+          <button
+            onClick={() => setUndoState(null)}
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
