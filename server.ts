@@ -415,6 +415,21 @@ app.get("/api/chats", requireAdmin, async (req, res) => {
   }
 });
 
+// Delete Chat Message
+app.delete("/api/chat/:clientId/messages/:messageId", requireAdmin, async (req, res) => {
+  try {
+    const { clientId, messageId } = req.params;
+    
+    await deleteDoc(doc(db, "chats", clientId, "messages", messageId));
+    
+    broadcastUpdate('CHAT_UPDATE', { clientId });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    res.status(500).json({ error: "Falha ao apagar mensagem" });
+  }
+});
+
 // Delete Chat
 app.delete("/api/chat/:clientId", requireAdmin, async (req, res) => {
   try {

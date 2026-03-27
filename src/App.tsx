@@ -235,6 +235,23 @@ export default function App() {
     }
   };
 
+  const deleteMessage = async (clientId: string, messageId: string) => {
+    if (!adminToken) return;
+    if (!window.confirm("Tem certeza que deseja apagar esta mensagem?")) return;
+    
+    try {
+      const res = await fetch(`/api/chat/${clientId}/messages/${messageId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      if (res.ok) {
+        setChatMessages(prev => prev.filter(msg => msg.id !== messageId));
+      }
+    } catch (error) {
+      console.error("Error deleting message:", error);
+    }
+  };
+
   useEffect(() => {
     // Fetch initial data
     const fetchData = async () => {
@@ -596,6 +613,17 @@ export default function App() {
       }
     }
 
+    if (worstStatus === 'sem_pendencias') {
+      const hasPendente = client.simulacoes?.some((s: any) => s.status === 'pendente' && !s.arquivado);
+      if (hasPendente) return 'em_analise';
+
+      const hasAguardandoAceite = client.simulacoes?.some((s: any) => s.status === 'aprovado' && s.clientAccepted !== 'sim' && !s.arquivado);
+      if (hasAguardandoAceite) return 'aguardando_aceite';
+
+      const hasReprovado = client.simulacoes?.some((s: any) => s.status === 'reprovado' && !s.arquivado);
+      if (hasReprovado) return 'reprovado';
+    }
+
     return worstStatus;
   };
 
@@ -606,6 +634,9 @@ export default function App() {
       case 'atrasado': return { color: 'bg-red-500', text: 'text-white', label: 'Atrasado' };
       case 'vence_hoje': return { color: 'bg-yellow-400', text: 'text-yellow-900', label: 'Vence Hoje' };
       case 'em_dia': return { color: 'bg-emerald-500', text: 'text-white', label: 'Em Dia' };
+      case 'em_analise': return { color: 'bg-yellow-400', text: 'text-yellow-900', label: 'Em Análise' };
+      case 'aguardando_aceite': return { color: 'bg-blue-400', text: 'text-blue-900', label: 'Aguardando Aceite' };
+      case 'reprovado': return { color: 'bg-red-500', text: 'text-white', label: 'Reprovado' };
       case 'sem_pendencias': return { color: 'bg-slate-200', text: 'text-slate-600', label: 'Sem Pendências' };
       default: return { color: 'bg-slate-200', text: 'text-slate-600', label: 'Sem Pendências' };
     }
@@ -1649,7 +1680,8 @@ export default function App() {
                       Empréstimo {clientSimulacoes.length > 1 ? `#${clientSimulacoes.length - simIndex}` : ''}
                       {sim.status === 'pendente' && <span className="text-xs bg-yellow-400 text-yellow-900 px-2 py-1 rounded-full uppercase tracking-wider">Em Análise</span>}
                       {sim.status === 'reprovado' && <span className="text-xs bg-red-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Reprovado</span>}
-                      {(sim.status === 'aprovado' || !sim.status) && (
+                      {sim.status === 'renegociado' && <span className="text-xs bg-slate-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Renegociado</span>}
+                      {(sim.status === 'aprovado' || (!sim.status && sim.status !== 'renegociado')) && (
                         <>
                           <span className="text-xs bg-emerald-500 text-white px-2 py-1 rounded-full uppercase tracking-wider">Aprovado</span>
                           {sim.clientAccepted === 'sim' && <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full uppercase tracking-wider ml-2">Aceito</span>}
@@ -1688,7 +1720,7 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                      {sim.status !== 'renegociado' && !sim.clientAccepted && (
+                      {sim.status === 'aprovado' && !sim.clientAccepted && (
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-center">
                           <h3 className="text-xl font-bold text-blue-800 mb-2">Proposta Aprovada!</h3>
                           <p className="text-blue-700 mb-4">
@@ -1846,7 +1878,7 @@ export default function App() {
                     </div>
                   )}
                   
-                  {!sim.clientAccepted && (
+                  {sim.status === 'aprovado' && !sim.clientAccepted && (
                     <div className="mt-8 pt-6 border-t border-slate-200">
                       <div className="flex gap-4">
                         <button
@@ -3948,6 +3980,9 @@ export default function App() {
                       <option value="atrasado">Atrasado (1 a 30 dias)</option>
                       <option value="vence_hoje">Vence Hoje</option>
                       <option value="em_dia">Em Dia</option>
+                      <option value="em_analise">Em Análise</option>
+                      <option value="aguardando_aceite">Aguardando Aceite</option>
+                      <option value="reprovado">Reprovado</option>
                       <option value="sem_pendencias">Sem Pendências</option>
                     </select>
                   </div>
@@ -4560,13 +4595,22 @@ export default function App() {
                         </div>
                       ) : (
                         chatMessages.map((msg, idx) => (
-                          <div key={idx} className={`flex flex-col max-w-[75%] ${msg.sender === 'admin' ? 'self-end items-end' : 'self-start items-start'}`}>
+                          <div key={idx} className={`flex flex-col max-w-[75%] group ${msg.sender === 'admin' ? 'self-end items-end' : 'self-start items-start'}`}>
                             <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'admin' ? 'bg-yellow-500 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
                               {msg.text}
                             </div>
-                            <span className="text-[10px] text-slate-400 mt-1 px-1">
-                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                            <div className={`flex items-center gap-2 mt-1 px-1 ${msg.sender === 'admin' ? 'flex-row-reverse' : ''}`}>
+                              <span className="text-[10px] text-slate-400">
+                                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <button
+                                onClick={() => deleteMessage(selectedClient.id, msg.id)}
+                                className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Apagar mensagem"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
                           </div>
                         ))
                       )}
