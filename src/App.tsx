@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Toaster, toast } from 'sonner';
 import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check, MessageCircle, Send, MessageSquare } from 'lucide-react';
 
 const initialFormData = {
@@ -397,6 +398,13 @@ export default function App() {
         } else if (data.type === 'UPDATE_CLIENTS') {
           // We trigger a custom event that the rest of the app can listen to
           window.dispatchEvent(new CustomEvent('app:update_clients'));
+        } else if (data.type === 'NEW_CLIENT') {
+          if (adminToken) {
+            toast.success(`Novo cliente cadastrado: ${data.payload?.nomeCompleto || 'Desconhecido'}`, {
+              description: 'Um novo cadastro foi realizado no sistema.',
+              duration: 5000,
+            });
+          }
         } else if (data.type === 'CHAT_UPDATE' || data.type === 'CHAT_READ') {
           window.dispatchEvent(new CustomEvent('app:chat_update', { detail: { ...data.payload, type: data.type } }));
         }
@@ -467,6 +475,9 @@ export default function App() {
   const [showContactModal, setShowContactModal] = useState(false);
   const [showHowItWorksModal, setShowHowItWorksModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showSimulationConfirmModal, setShowSimulationConfirmModal] = useState(false);
+  const [pendingSimulation, setPendingSimulation] = useState<any>(null);
+  const [pendingFormData, setPendingFormData] = useState<any>(null);
   const [showArchivedLoans, setShowArchivedLoans] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCepSearchModal, setShowCepSearchModal] = useState(false);
@@ -1603,6 +1614,59 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {showSimulationConfirmModal && pendingSimulation && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl relative">
+            <h3 className="text-2xl font-bold text-slate-800 mb-4 text-center">Confirme sua Simulação</h3>
+            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 mb-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Valor Solicitado</span>
+                <span className="font-bold text-slate-800 text-lg">{formatCurrency(pendingSimulation.valorSolicitado)}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Prazo</span>
+                <span className="font-semibold text-slate-800 capitalize">{pendingSimulation.prazo}</span>
+              </div>
+              {pendingSimulation.prazo !== 'única' ? (
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-slate-500">Quantidade de Parcelas</span>
+                  <span className="font-semibold text-slate-800">{pendingSimulation.quantidade}x</span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                  <span className="text-slate-500">Data de Pagamento</span>
+                  <span className="font-semibold text-slate-800">{formatDate(pendingSimulation.dataVencimentoUnica)}</span>
+                </div>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 mb-6 text-center">
+              Confira os dados acima. Se estiver tudo certo, clique em Confirmar para enviar sua proposta.
+            </p>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowSimulationConfirmModal(false)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-xl transition-colors"
+              >
+                Corrigir
+              </button>
+              <button 
+                onClick={() => {
+                  setShowSimulationConfirmModal(false);
+                  if (selectedClient) {
+                    handleAddSimulation(pendingSimulation);
+                  } else {
+                    setView('form');
+                  }
+                }}
+                className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-bold py-3 px-4 rounded-xl transition-colors"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -2315,7 +2379,7 @@ export default function App() {
             <div className="flex gap-4">
               <button 
                 type="button"
-                onClick={() => { setView('form'); setAdminPassword(''); setLoginError(''); }}
+                onClick={() => { setView('welcome'); setAdminPassword(''); setLoginError(''); }}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg transition-colors"
               >
                 Cancelar
@@ -5087,12 +5151,8 @@ export default function App() {
                   };
 
                   setSimulacao(novaSimulacao);
-
-                  if (selectedClient) {
-                    handleAddSimulation(novaSimulacao);
-                  } else {
-                    setView('form');
-                  }
+                  setPendingSimulation(novaSimulacao);
+                  setShowSimulationConfirmModal(true);
                 }}
                 className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg"
               >
@@ -5185,6 +5245,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
+      <Toaster position="top-right" richColors />
       <div className="absolute top-4 left-4 flex gap-3">
         <button 
           onClick={toggleFullscreen}

@@ -236,6 +236,7 @@ app.post("/api/clients", async (req, res) => {
     });
       
     broadcastUpdate('UPDATE_CLIENTS');
+    broadcastUpdate('NEW_CLIENT', { nomeCompleto: client.nomeCompleto });
     res.status(201).json({ success: true });
   } catch (error: any) {
     console.error("Error saving client:", error);
