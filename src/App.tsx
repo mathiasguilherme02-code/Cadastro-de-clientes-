@@ -92,6 +92,9 @@ export default function App() {
   });
   const [adminTab, setAdminTab] = useState<'clientes' | 'cronograma' | 'fluxo_caixa' | 'mensagens'>('clientes');
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
+  const [cronogramaYear, setCronogramaYear] = useState(getLocalISOYear());
+  const [cronogramaMonth, setCronogramaMonth] = useState('all');
+  const [cronogramaStatusFilter, setCronogramaStatusFilter] = useState('all');
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [fluxoMonth, setFluxoMonth] = useState('all'); // 'all' or '01' to '12'
   const [fluxoTypeFilter, setFluxoTypeFilter] = useState('all'); // 'all', 'entrada', 'saida', 'retirada', 'aporte', 'entrada_prevista'
@@ -2423,7 +2426,29 @@ export default function App() {
        return a.clientName.localeCompare(b.clientName);
      });
 
-    const groupedCronograma = cronogramaParcelas.reduce((acc: any, p: any) => {
+    const filteredCronogramaParcelas = cronogramaParcelas.filter((p: any) => {
+      const date = p.dataVencimento;
+      if (!date) return false;
+      const [year, month] = date.split('-');
+      
+      if (cronogramaYear !== 'all' && year !== cronogramaYear) return false;
+      if (cronogramaMonth !== 'all' && month !== cronogramaMonth) return false;
+
+      if (cronogramaStatusFilter !== 'all') {
+        const hoje = new Date();
+        hoje.setHours(0,0,0,0);
+        const vencimento = parseLocalDate(date);
+        vencimento.setHours(0,0,0,0);
+        
+        if (cronogramaStatusFilter === 'vencidas' && vencimento >= hoje) return false;
+        if (cronogramaStatusFilter === 'hoje' && vencimento.getTime() !== hoje.getTime()) return false;
+        if (cronogramaStatusFilter === 'a_vencer' && vencimento <= hoje) return false;
+      }
+
+      return true;
+    });
+
+    const groupedCronograma = filteredCronogramaParcelas.reduce((acc: any, p: any) => {
       if (!acc[p.dataVencimento]) {
         acc[p.dataVencimento] = [];
       }
@@ -4288,6 +4313,51 @@ export default function App() {
                   <Calendar size={24} className="text-yellow-500" />
                   Cronograma de Clientes
                 </h2>
+                <div className="flex gap-2">
+                  <select 
+                    value={cronogramaStatusFilter}
+                    onChange={(e) => setCronogramaStatusFilter(e.target.value)}
+                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                  >
+                    <option value="all">Todos os Status</option>
+                    <option value="vencidas">Vencidas</option>
+                    <option value="hoje">Vencendo Hoje</option>
+                    <option value="a_vencer">A Vencer</option>
+                  </select>
+                  <select 
+                    value={cronogramaMonth}
+                    onChange={(e) => setCronogramaMonth(e.target.value)}
+                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                  >
+                    <option value="all">Ano Todo</option>
+                    <option value="01">Janeiro</option>
+                    <option value="02">Fevereiro</option>
+                    <option value="03">Março</option>
+                    <option value="04">Abril</option>
+                    <option value="05">Maio</option>
+                    <option value="06">Junho</option>
+                    <option value="07">Julho</option>
+                    <option value="08">Agosto</option>
+                    <option value="09">Setembro</option>
+                    <option value="10">Outubro</option>
+                    <option value="11">Novembro</option>
+                    <option value="12">Dezembro</option>
+                  </select>
+                  <select 
+                    value={cronogramaYear}
+                    onChange={(e) => setCronogramaYear(e.target.value)}
+                    className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
+                  >
+                    <option value="all">Todos os Anos</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                    <option value="2030">2030</option>
+                  </select>
+                </div>
               </div>
 
               {Object.keys(groupedCronograma).length > 0 ? (
@@ -4398,8 +4468,8 @@ export default function App() {
               ) : (
                 <div className="p-12 text-center flex flex-col items-center justify-center">
                   <Calendar size={64} className="text-slate-300 mb-4" />
-                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhuma parcela pendente</h3>
-                  <p className="text-slate-500">Não há vencimentos pendentes no momento.</p>
+                  <h3 className="text-xl font-medium text-slate-700 mb-2">Nenhuma parcela encontrada</h3>
+                  <p className="text-slate-500">Não há vencimentos para os filtros selecionados.</p>
                 </div>
               )}
             </div>
