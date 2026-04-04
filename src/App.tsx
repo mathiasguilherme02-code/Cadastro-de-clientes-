@@ -186,7 +186,15 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
-  const [clientToDelete, setClientToDelete] = useState<any | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: React.ReactNode;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+    type?: 'danger' | 'warning' | 'info';
+  } | null>(null);
   const [isEditingClientData, setIsEditingClientData] = useState(false);
   const [editingParcela, setEditingParcela] = useState<{simIndex: number, parcelaIndex: number} | null>(null);
   const [editParcelaData, setEditParcelaData] = useState({dataVencimento: '', valor: 0, dataPagamento: ''});
@@ -1670,6 +1678,46 @@ export default function App() {
           </div>
         </div>
       )}
+      
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              confirmModal.type === 'danger' ? 'bg-red-100 text-red-600' :
+              confirmModal.type === 'warning' ? 'bg-yellow-100 text-yellow-600' :
+              'bg-blue-100 text-blue-600'
+            }`}>
+              {confirmModal.type === 'danger' ? <Trash2 size={32} /> :
+               confirmModal.type === 'warning' ? <AlertTriangle size={32} /> :
+               <Info size={32} />}
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 text-center mb-2">{confirmModal.title}</h3>
+            <div className="text-slate-600 text-center mb-6">
+              {confirmModal.message}
+            </div>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
+              >
+                {confirmModal.cancelText || 'Cancelar'}
+              </button>
+              <button 
+                onClick={() => {
+                  confirmModal.onConfirm();
+                }}
+                className={`flex-1 text-white font-medium py-2.5 px-4 rounded-xl transition-colors ${
+                  confirmModal.type === 'danger' ? 'bg-red-500 hover:bg-red-600' :
+                  confirmModal.type === 'warning' ? 'bg-yellow-500 hover:bg-yellow-600' :
+                  'bg-blue-500 hover:bg-blue-600'
+                }`}
+              >
+                {confirmModal.confirmText || 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -2263,7 +2311,7 @@ export default function App() {
       
       if (res.ok) {
         setClients(clients.filter(c => c.id !== id));
-        setClientToDelete(null);
+        setConfirmModal(null);
         if (selectedClient && selectedClient.id === id) {
           setSelectedClient(null);
         }
@@ -2763,63 +2811,82 @@ export default function App() {
     };
 
     const handleDeleteFluxoItem = async (item: any) => {
-      if (!window.confirm('Tem certeza que deseja excluir este lançamento do fluxo de caixa?')) return;
-
       const { id, tipo } = item;
 
-      try {
-        if (tipo === 'aporte' || tipo === 'retirada') {
-          const adminClient = clients.find(c => c.id === 'admin-transactions');
-          if (!adminClient) return;
-          const updatedRetiradas = adminClient.dados.retiradas.filter((t: any) => t.id !== id);
-          const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
-          await saveClientUpdate(updatedClient);
-        } else if (tipo === 'entrada') {
-          const parts = id.split('-');
-          const cId = parts[1];
-          const sIdx = parseInt(parts[2]);
-          const pNum = parseInt(parts[3]);
-          
-          const client = clients.find(c => c.id === cId);
-          if (!client) return;
-          
-          const updatedSimulacoes = [...client.simulacoes];
-          const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
-          const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
-          
-          if (pIdx !== -1) {
-            // To "delete" an entry from flux, we mark it as not paid
-            updatedParcelas[pIdx] = { 
-              ...updatedParcelas[pIdx], 
-              paga: false,
-              status: 'pendente',
-              dataPagamento: null
-            };
-            updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
-            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+      const performDelete = async () => {
+        try {
+          if (tipo === 'aporte' || tipo === 'retirada') {
+            const adminClient = clients.find(c => c.id === 'admin-transactions');
+            if (!adminClient) return;
+            const updatedRetiradas = adminClient.dados.retiradas.filter((t: any) => t.id !== id);
+            const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
             await saveClientUpdate(updatedClient);
-          }
-        } else if (tipo === 'saida') {
-          const parts = id.split('-');
-          const cId = parts[1];
-          const sIdx = parseInt(parts[2]);
-          
-          const client = clients.find(c => c.id === cId);
-          if (!client) return;
-          
-          const updatedSimulacoes = [...client.simulacoes];
-          // To "delete" a loan release, we might need to delete the whole simulation or mark it as rejected
-          if (window.confirm('Excluir este lançamento de saída irá remover o empréstimo inteiro deste cliente. Continuar?')) {
+          } else if (tipo === 'entrada') {
+            const parts = id.split('-');
+            const cId = parts[1];
+            const sIdx = parseInt(parts[2]);
+            const pNum = parseInt(parts[3]);
+            
+            const client = clients.find(c => c.id === cId);
+            if (!client) return;
+            
+            const updatedSimulacoes = [...client.simulacoes];
+            const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
+            const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
+            
+            if (pIdx !== -1) {
+              // To "delete" an entry from flux, we mark it as not paid
+              updatedParcelas[pIdx] = { 
+                ...updatedParcelas[pIdx], 
+                paga: false,
+                status: 'pendente',
+                dataPagamento: null
+              };
+              updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
+              const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+              await saveClientUpdate(updatedClient);
+            }
+          } else if (tipo === 'saida') {
+            const parts = id.split('-');
+            const cId = parts[1];
+            const sIdx = parseInt(parts[2]);
+            
+            const client = clients.find(c => c.id === cId);
+            if (!client) return;
+            
+            const updatedSimulacoes = [...client.simulacoes];
             updatedSimulacoes.splice(sIdx, 1);
             const updatedClient = { ...client, simulacoes: updatedSimulacoes };
             await saveClientUpdate(updatedClient);
-          } else {
-            return;
           }
+          setConfirmModal(null);
+          alert('Lançamento excluído com sucesso!');
+        } catch (error) {
+          setConfirmModal(null);
+          alert('Erro ao excluir lançamento.');
         }
-        alert('Lançamento excluído com sucesso!');
-      } catch (error) {
-        alert('Erro ao excluir lançamento.');
+      };
+
+      if (tipo === 'saida') {
+        setConfirmModal({
+          isOpen: true,
+          title: 'Excluir Lançamento de Saída',
+          message: 'Excluir este lançamento de saída irá remover o empréstimo inteiro deste cliente. Tem certeza que deseja continuar?',
+          confirmText: 'Sim, Excluir Empréstimo',
+          cancelText: 'Cancelar',
+          type: 'danger',
+          onConfirm: performDelete
+        });
+      } else {
+        setConfirmModal({
+          isOpen: true,
+          title: 'Excluir Lançamento',
+          message: 'Tem certeza que deseja excluir este lançamento do fluxo de caixa?',
+          confirmText: 'Sim, Excluir',
+          cancelText: 'Cancelar',
+          type: 'danger',
+          onConfirm: performDelete
+        });
       }
     };
 
@@ -2968,32 +3035,40 @@ export default function App() {
   const handleExcluirSimulacao = async (simIndex: number) => {
     if (!selectedClient) return;
     
-    if (!window.confirm('Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.')) {
-      return;
-    }
-    
-    const updatedSimulacoes = [...selectedClient.simulacoes];
-    updatedSimulacoes.splice(simIndex, 1);
-    
-    const updatedClient = {
-      ...selectedClient,
-      simulacoes: updatedSimulacoes,
-      simulacao: null
-    };
-    
-    try {
-      const success = await updateClientWithUndo(updatedClient, 'Excluir Empréstimo');
-      
-      if (!success) {
-        throw new Error('Falha ao excluir empréstimo no servidor');
+    setConfirmModal({
+      isOpen: true,
+      title: 'Excluir Empréstimo',
+      message: 'Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.',
+      confirmText: 'Sim, Excluir',
+      cancelText: 'Cancelar',
+      type: 'danger',
+      onConfirm: async () => {
+        const updatedSimulacoes = [...selectedClient.simulacoes];
+        updatedSimulacoes.splice(simIndex, 1);
+        
+        const updatedClient = {
+          ...selectedClient,
+          simulacoes: updatedSimulacoes,
+          simulacao: null
+        };
+        
+        try {
+          const success = await updateClientWithUndo(updatedClient, 'Excluir Empréstimo');
+          
+          if (!success) {
+            throw new Error('Falha ao excluir empréstimo no servidor');
+          }
+          
+          setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
+          setSelectedClient(updatedClient);
+          setConfirmModal(null);
+        } catch (error) {
+          console.error('Error deleting simulacao:', error);
+          setConfirmModal(null);
+          alert('Erro ao excluir empréstimo. Tente novamente.');
+        }
       }
-      
-      setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
-      setSelectedClient(updatedClient);
-    } catch (error) {
-      console.error('Error deleting simulacao:', error);
-      alert('Erro ao excluir empréstimo. Tente novamente.');
-    }
+    });
   };
 
   const handleAprovarSimulacao = async (simIndex: number, aprovar: boolean) => {
@@ -3308,7 +3383,19 @@ export default function App() {
                     Editar Dados
                   </button>
                   <button 
-                    onClick={() => setClientToDelete(selectedClient)}
+                    onClick={() => setConfirmModal({
+                      isOpen: true,
+                      title: 'Excluir Cliente',
+                      message: (
+                        <>
+                          Tem certeza que deseja excluir o cliente <span className="font-semibold">{selectedClient.nomeCompleto}</span>? Esta ação não poderá ser desfeita.
+                        </>
+                      ),
+                      confirmText: 'Sim, Excluir',
+                      cancelText: 'Cancelar',
+                      type: 'danger',
+                      onConfirm: () => handleDeleteClient(selectedClient.id)
+                    })}
                     className="bg-red-500/20 hover:bg-red-500 text-red-200 hover:text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                   >
                     <Trash2 size={18} />
@@ -4273,7 +4360,19 @@ export default function App() {
                                 Ver Detalhes
                               </button>
                               <button 
-                                onClick={() => setClientToDelete(client)}
+                                onClick={() => setConfirmModal({
+                                  isOpen: true,
+                                  title: 'Excluir Cliente',
+                                  message: (
+                                    <>
+                                      Tem certeza que deseja excluir o cliente <span className="font-semibold">{client.nomeCompleto}</span>? Esta ação não poderá ser desfeita.
+                                    </>
+                                  ),
+                                  confirmText: 'Sim, Excluir',
+                                  cancelText: 'Cancelar',
+                                  type: 'danger',
+                                  onConfirm: () => handleDeleteClient(client.id)
+                                })}
                                 className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
                                 title="Excluir cliente"
                               >
@@ -4912,34 +5011,6 @@ export default function App() {
             </div>
           )}
         </div>
-
-        {clientToDelete && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-800 text-center mb-2">Excluir Cliente</h3>
-              <p className="text-slate-600 text-center mb-6">
-                Tem certeza que deseja excluir o cliente <span className="font-semibold">{clientToDelete.nomeCompleto}</span>? Esta ação não poderá ser desfeita.
-              </p>
-              <div className="flex gap-3">
-                <button 
-                  onClick={() => setClientToDelete(null)}
-                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  onClick={() => handleDeleteClient(clientToDelete.id)}
-                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2.5 px-4 rounded-xl transition-colors"
-                >
-                  Sim, Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {editingTransaction && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -5683,11 +5754,20 @@ export default function App() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          if (window.confirm('Tem certeza que deseja remover este anexo?')) {
-                            const newArquivos = [...formData.arquivos];
-                            newArquivos.splice(index, 1);
-                            setFormData({ ...formData, arquivos: newArquivos });
-                          }
+                          setConfirmModal({
+                            isOpen: true,
+                            title: 'Remover Anexo',
+                            message: 'Tem certeza que deseja remover este anexo?',
+                            confirmText: 'Sim, Remover',
+                            cancelText: 'Cancelar',
+                            type: 'danger',
+                            onConfirm: () => {
+                              const newArquivos = [...formData.arquivos];
+                              newArquivos.splice(index, 1);
+                              setFormData({ ...formData, arquivos: newArquivos });
+                              setConfirmModal(null);
+                            }
+                          });
                         }}
                         className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 z-10"
                         title="Remover anexo"
