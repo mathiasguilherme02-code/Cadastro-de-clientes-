@@ -183,6 +183,11 @@ export default function App() {
   const [showReprovadoAlert, setShowReprovadoAlert] = useState(false);
   const [showActiveLoanAlert, setShowActiveLoanAlert] = useState(false);
   const [clients, setClients] = useState<any[]>([]);
+  const clientsRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    clientsRef.current = clients;
+  }, [clients]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
@@ -413,7 +418,40 @@ export default function App() {
           if (adminToken) {
             toast.success(`Novo cliente cadastrado: ${data.payload?.nomeCompleto || 'Desconhecido'}`, {
               description: 'Um novo cadastro foi realizado no sistema.',
-              duration: 5000,
+              duration: 10000,
+              onClick: () => {
+                setView('admin_dashboard');
+                setAdminTab('clientes');
+                const foundClient = clientsRef.current.find(c => c.id === data.payload.id);
+                if (foundClient) {
+                  setSelectedClient(foundClient);
+                } else {
+                  fetch('/api/clients', { headers: { 'Authorization': `Bearer ${adminToken}` } })
+                    .then(res => res.json())
+                    .then(clientsData => {
+                      const client = clientsData.find((c: any) => c.id === data.payload.id);
+                      if (client) setSelectedClient(client);
+                    });
+                }
+              },
+              action: {
+                label: 'Ver Cliente',
+                onClick: () => {
+                  setView('admin_dashboard');
+                  setAdminTab('clientes');
+                  const foundClient = clientsRef.current.find(c => c.id === data.payload.id);
+                  if (foundClient) {
+                    setSelectedClient(foundClient);
+                  } else {
+                    fetch('/api/clients', { headers: { 'Authorization': `Bearer ${adminToken}` } })
+                      .then(res => res.json())
+                      .then(clientsData => {
+                        const client = clientsData.find((c: any) => c.id === data.payload.id);
+                        if (client) setSelectedClient(client);
+                      });
+                  }
+                }
+              }
             });
           }
         } else if (data.type === 'CHAT_UPDATE' || data.type === 'CHAT_READ') {
@@ -511,7 +549,7 @@ export default function App() {
             setClients(clientsData);
             
             // If a client is selected in admin view, update it too
-            if (selectedClient && view === 'admin') {
+            if (selectedClient && view === 'admin_dashboard') {
               const updatedSelected = clientsData.find((c: any) => c.id === selectedClient.id);
               if (updatedSelected) {
                 setSelectedClient(updatedSelected);
