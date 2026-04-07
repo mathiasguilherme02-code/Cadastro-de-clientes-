@@ -2696,7 +2696,11 @@ export default function App() {
     ).reduce((acc, s) => acc + parseFloat(s.valorSolicitado || 0), 0);
 
     const monthRetiradas = adminTransactions
-      .filter((t: any) => t.data.startsWith(fluxoFilter) && t.tipo !== 'aporte')
+      .filter((t: any) => t.data.startsWith(fluxoFilter) && t.tipo === 'retirada')
+      .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
+
+    const monthDespesasPrevistas = adminTransactions
+      .filter((t: any) => t.data.startsWith(fluxoFilter) && t.tipo === 'despesa_prevista')
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const monthAportes = adminTransactions
@@ -4633,11 +4637,12 @@ export default function App() {
                       className="px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
                     >
                       <option value="all">Todos os Tipos</option>
-                      <option value="entrada">Entradas (Pagamentos)</option>
+                      <option value="entrada">Entradas Efetivadas</option>
+                      <option value="entrada_prevista">Entradas Pendentes</option>
                       <option value="saida">Saídas (Empréstimos)</option>
-                      <option value="retirada">Retiradas / Despesas</option>
+                      <option value="retirada">Despesas Efetivadas</option>
+                      <option value="despesa_prevista">Despesas Previstas</option>
                       <option value="aporte">Aportes</option>
-                      <option value="entrada_prevista">Previsto</option>
                     </select>
                     <select 
                       value={fluxoMonth}
@@ -4672,18 +4677,18 @@ export default function App() {
 
                 {/* Fundo de Caixa - Destaque */}
                 <div className="mb-6">
-                  <div className={`border p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm ${fundoDeCaixa >= 0 ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200' : 'bg-gradient-to-br from-rose-50 to-red-50 border-rose-200'}`}>
+                  <div className={`border p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm ${saldo >= 0 ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200' : 'bg-gradient-to-br from-rose-50 to-red-50 border-rose-200'}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Landmark size={24} className={fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'} />
-                      <p className={`text-sm font-bold uppercase tracking-widest ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
-                        Fundo de Caixa (Disponível para Empréstimo)
+                      <Landmark size={24} className={saldo >= 0 ? 'text-blue-600' : 'text-rose-600'} />
+                      <p className={`text-sm font-bold uppercase tracking-widest ${saldo >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                        Fundo de Caixa (Disponível no Período)
                       </p>
                     </div>
-                    <p className={`text-4xl font-black ${fundoDeCaixa >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
-                      {formatCurrency(fundoDeCaixa)}
+                    <p className={`text-4xl font-black ${saldo >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                      {formatCurrency(saldo)}
                     </p>
-                    <p className={`text-xs mt-2 font-medium ${fundoDeCaixa >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>
-                      Acumulado até o período selecionado (Aportes + Entradas - Saídas - Retiradas)
+                    <p className={`text-xs mt-2 font-medium ${saldo >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>
+                      Saldo estrito do período selecionado (Aportes + Entradas - Saídas - Retiradas Efetivadas)
                     </p>
                   </div>
                 </div>
@@ -4725,9 +4730,17 @@ export default function App() {
                   <div className="bg-orange-50 border border-orange-100 p-5 rounded-xl flex flex-col justify-between shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <CreditCard size={20} className="text-orange-600" />
-                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Retiradas e Despesas</p>
+                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Despesas Efetivadas</p>
                     </div>
                     <p className="text-2xl font-black text-orange-700">{formatCurrency(monthRetiradas)}</p>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock size={20} className="text-slate-600" />
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">Despesas Previstas</p>
+                    </div>
+                    <p className="text-2xl font-black text-slate-700">{formatCurrency(monthDespesasPrevistas)}</p>
                   </div>
                 </div>
 
@@ -4741,7 +4754,8 @@ export default function App() {
                         onChange={(e) => setNewRetirada({...newRetirada, tipo: e.target.value})}
                         className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
                       >
-                        <option value="retirada">Retirada / Despesa</option>
+                        <option value="retirada">Despesa Efetivada</option>
+                        <option value="despesa_prevista">Despesa Prevista</option>
                         <option value="aporte">Aporte (Entrada)</option>
                       </select>
                     </div>
