@@ -2549,15 +2549,18 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
           .flatMap((s: any, sIdx: number) => 
-            (s.parcelas || []).filter((p: any) => p.paga).map((p: any) => ({
-              id: `p-${c.id}-${sIdx}-${p.numero}`,
-              data: p.dataPagamento || p.dataVencimento,
-              tipo: 'entrada',
-              descricao: `Pagamento: ${c.nomeCompleto}`,
-              detalhes: `Parcela ${p.numero} - CPF: ${c.cpf}`,
-              valor: parseFloat(p.valor || 0),
-              clienteId: c.id
-            }))
+            (s.parcelas || []).filter((p: any) => p.paga).map((p: any) => {
+              const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+              return {
+                id: `p-${c.id}-${sIdx}-${p.numero}`,
+                data: p.dataPagamento || p.dataVencimento,
+                tipo: 'entrada',
+                descricao: `Pagamento: ${c.nomeCompleto}`,
+                detalhes: `Parcela ${p.numero} - CPF: ${c.cpf}`,
+                valor: Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal),
+                clienteId: c.id
+              };
+            })
           )
       ),
       ...clients.flatMap(c => 
@@ -2641,7 +2644,10 @@ export default function App() {
       (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
         .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
         .flatMap((s: any) => [
-          ...(s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoFilter)).map((p: any) => parseFloat(p.valor || 0)),
+          ...(s.parcelas || []).filter((p: any) => p.paga && (p.dataPagamento || p.dataVencimento)?.startsWith(fluxoFilter)).map((p: any) => {
+            const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
+            return Math.max(0, parseFloat(p.valor || 0) - abatimentosTotal);
+          }),
           ...(s.parcelas || []).flatMap((p: any) => (p.abatimentos || []).filter((a: any) => a.data?.startsWith(fluxoFilter)).map((a: any) => parseFloat(a.valor || 0)))
         ]
       )
@@ -4664,71 +4670,64 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-                  <div className={`border p-4 rounded-xl flex flex-col justify-between ${fundoDeCaixa >= 0 ? 'bg-blue-50 border-blue-100' : 'bg-rose-50 border-rose-100'}`}>
+                {/* Fundo de Caixa - Destaque */}
+                <div className="mb-6">
+                  <div className={`border p-6 rounded-2xl flex flex-col justify-center items-center text-center shadow-sm ${fundoDeCaixa >= 0 ? 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200' : 'bg-gradient-to-br from-rose-50 to-red-50 border-rose-200'}`}>
                     <div className="flex items-center gap-2 mb-2">
-                      <Landmark size={18} className={fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'} />
-                      <p className={`text-xs font-semibold uppercase tracking-wider ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>Fundo de Caixa (Acumulado)</p>
+                      <Landmark size={24} className={fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'} />
+                      <p className={`text-sm font-bold uppercase tracking-widest ${fundoDeCaixa >= 0 ? 'text-blue-600' : 'text-rose-600'}`}>
+                        Fundo de Caixa (Disponível para Empréstimo)
+                      </p>
                     </div>
-                    <p className={`text-xl font-bold ${fundoDeCaixa >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>{formatCurrency(fundoDeCaixa)}</p>
-                    <p className={`text-[10px] mt-1 ${fundoDeCaixa >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>Saldo total até o período</p>
+                    <p className={`text-4xl font-black ${fundoDeCaixa >= 0 ? 'text-blue-700' : 'text-rose-700'}`}>
+                      {formatCurrency(fundoDeCaixa)}
+                    </p>
+                    <p className={`text-xs mt-2 font-medium ${fundoDeCaixa >= 0 ? 'text-blue-500' : 'text-rose-500'}`}>
+                      Acumulado até o período selecionado (Aportes + Entradas - Saídas - Retiradas)
+                    </p>
                   </div>
+                </div>
 
-                  <div className="bg-green-50 border border-green-100 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ArrowUpRight size={18} className="text-green-600" />
-                      <p className="text-xs font-semibold text-green-600 uppercase tracking-wider">Entradas Efetivadas</p>
+                {/* Outras Métricas */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                  <div className="bg-green-50 border border-green-100 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ArrowUpRight size={20} className="text-green-600" />
+                      <p className="text-xs font-bold text-green-600 uppercase tracking-wider">Entradas Efetivadas</p>
                     </div>
-                    <p className="text-xl font-bold text-green-700">{formatCurrency(monthEntradas)}</p>
+                    <p className="text-2xl font-black text-green-700">{formatCurrency(monthEntradas)}</p>
                   </div>
                   
-                  <div className="bg-yellow-50 border border-yellow-100 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock size={18} className="text-yellow-600" />
-                      <p className="text-xs font-semibold text-yellow-600 uppercase tracking-wider">Entradas Pendentes</p>
+                  <div className="bg-yellow-50 border border-yellow-100 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Clock size={20} className="text-yellow-600" />
+                      <p className="text-xs font-bold text-yellow-600 uppercase tracking-wider">Entradas Pendentes</p>
                     </div>
-                    <p className="text-xl font-bold text-yellow-700">{formatCurrency(monthPendentes)}</p>
+                    <p className="text-2xl font-black text-yellow-700">{formatCurrency(monthPendentes)}</p>
                   </div>
 
-                  <div className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <PiggyBank size={18} className="text-emerald-600" />
-                      <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider">Aportes (Capital)</p>
+                  <div className="bg-rose-50 border border-rose-200 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle size={20} className="text-rose-600" />
+                      <p className="text-xs font-bold text-rose-600 uppercase tracking-wider">Inadimplências</p>
                     </div>
-                    <p className="text-xl font-bold text-emerald-700">{formatCurrency(monthAportes)}</p>
+                    <p className="text-2xl font-black text-rose-700">{formatCurrency(monthInadimplencia)}</p>
                   </div>
 
-                  <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <ArrowDownRight size={18} className="text-red-600" />
-                      <p className="text-xs font-semibold text-red-600 uppercase tracking-wider">Saídas (Empréstimos)</p>
+                  <div className="bg-red-50 border border-red-100 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ArrowDownRight size={20} className="text-red-600" />
+                      <p className="text-xs font-bold text-red-600 uppercase tracking-wider">Saídas de Empréstimos</p>
                     </div>
-                    <p className="text-xl font-bold text-red-700">{formatCurrency(monthSaidas)}</p>
+                    <p className="text-2xl font-black text-red-700">{formatCurrency(monthSaidas)}</p>
                   </div>
 
-                  <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CreditCard size={18} className="text-orange-600" />
-                      <p className="text-xs font-semibold text-orange-600 uppercase tracking-wider">Retiradas / Despesas</p>
+                  <div className="bg-orange-50 border border-orange-100 p-5 rounded-xl flex flex-col justify-between shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <CreditCard size={20} className="text-orange-600" />
+                      <p className="text-xs font-bold text-orange-600 uppercase tracking-wider">Retiradas e Despesas</p>
                     </div>
-                    <p className="text-xl font-bold text-orange-700">{formatCurrency(monthRetiradas)}</p>
-                  </div>
-
-                  <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col justify-between">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle size={18} className="text-rose-600" />
-                      <p className="text-xs font-semibold text-rose-600 uppercase tracking-wider">Inadimplência (Período)</p>
-                    </div>
-                    <p className="text-xl font-bold text-rose-700">{formatCurrency(monthInadimplencia)}</p>
-                  </div>
-
-                  <div className={`border p-4 rounded-xl flex flex-col justify-between ${saldo >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wallet size={18} className={saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'} />
-                      <p className={`text-xs font-semibold uppercase tracking-wider ${saldo >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Saldo do Período</p>
-                    </div>
-                    <p className={`text-xl font-bold ${saldo >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>{formatCurrency(saldo)}</p>
-                    <p className={`text-[10px] mt-1 ${saldo >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>Entradas + Aportes - Saídas - Retiradas</p>
+                    <p className="text-2xl font-black text-orange-700">{formatCurrency(monthRetiradas)}</p>
                   </div>
                 </div>
 
