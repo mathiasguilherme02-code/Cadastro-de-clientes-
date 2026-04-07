@@ -1,10 +1,8 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { initializeApp } from "firebase/app";
-import { getAuth, signInAnonymously } from "firebase/auth";
-import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, addDoc, increment, writeBatch } from "firebase/firestore";
-import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
+import admin from "firebase-admin";
+import { readFileSync } from "fs";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -12,31 +10,71 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || "AIzaSyDlOItlVJP6hAD4yEKA8ZdDkI4FxV3oNlw",
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || "gmemprestimo-69965.firebaseapp.com",
-  projectId: process.env.FIREBASE_PROJECT_ID || "gmemprestimo-69965",
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "gmemprestimo-69965.firebasestorage.app",
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "200113810439",
-  appId: process.env.FIREBASE_APP_ID || "1:200113810439:web:b8f49db6b8ac01975d4ea2"
-};
+// Load service account
+const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
+let serviceAccount;
+try {
+  serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+} catch (e) {
+  console.error("Failed to load serviceAccountKey.json", e);
+}
 
 let db: any;
 let storage: any;
-try {
-  const firebaseApp = initializeApp(firebaseConfig);
-  const auth = getAuth(firebaseApp);
-  
-  // Authenticate anonymously to securely access Firestore
-  signInAnonymously(auth)
-    .then(() => console.log("Servidor autenticado no Firebase com sucesso!"))
-    .catch((error) => console.error("Erro na autenticação do Firebase:", error));
 
-  db = getFirestore(firebaseApp);
-  storage = getStorage(firebaseApp);
+try {
+  if (serviceAccount && !admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "gmemprestimo-69965.firebasestorage.app"
+    });
+    db = admin.firestore();
+    storage = admin.storage().bucket();
+    console.log("Firebase Admin initialized successfully");
+  } else {
+    console.error("No service account found, Firebase Admin not initialized");
+  }
 } catch (e) {
-  console.error("Firebase initialization error:", e);
+  console.error("Firebase Admin initialization error:", e);
 }
+
+// --- Firebase Client SDK Mock Wrappers ---
+const collection = (db: any, ...pathSegments: string[]) => db.collection(pathSegments.join('/'));
+const doc = (db: any, ...pathSegments: string[]) => db.doc(pathSegments.join('/'));
+const setDoc = (ref: any, data: any, options?: any) => options?.merge ? ref.set(data, { merge: true }) : ref.set(data);
+const getDoc = async (ref: any) => {
+  const snap = await ref.get();
+  return { exists: () => snap.exists, data: () => snap.data(), id: snap.id, ref: snap.ref };
+};
+const getDocs = (query: any) => query.get();
+const updateDoc = (ref: any, data: any) => ref.update(data);
+const deleteDoc = (ref: any) => ref.delete();
+const query = (ref: any, ...constraints: any[]) => {
+  let q = ref;
+  for (const c of constraints) q = c(q);
+  return q;
+};
+const where = (field: string, op: string, value: any) => (q: any) => q.where(field, op, value);
+const orderBy = (field: string, dir: string = 'asc') => (q: any) => q.orderBy(field, dir);
+const addDoc = async (ref: any, data: any) => {
+  const docRef = await ref.add(data);
+  return { id: docRef.id, ...docRef };
+};
+const increment = (n: number) => admin.firestore.FieldValue.increment(n);
+const writeBatch = (db: any) => db.batch();
+
+const ref = (storage: any, path: string) => storage.file(path);
+const uploadString = async (fileRef: any, dataString: string, format: string) => {
+  const matches = dataString.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) throw new Error('Invalid input string');
+  const buffer = Buffer.from(matches[2], 'base64');
+  await fileRef.save(buffer, { metadata: { contentType: matches[1] } });
+};
+const getDownloadURL = async (fileRef: any) => {
+  try { await fileRef.makePublic(); } catch (e) { /* ignore if already public or not allowed */ }
+  return `https://storage.googleapis.com/${fileRef.bucket.name}/${fileRef.name}`;
+};
+// -----------------------------------------
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'Gustavo@01';
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'secret-admin-token-123';
