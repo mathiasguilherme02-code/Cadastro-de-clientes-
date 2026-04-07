@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import { initializeApp } from "firebase/app";
+import { getAuth, signInAnonymously } from "firebase/auth";
 import { getFirestore, collection, doc, setDoc, getDoc, getDocs, updateDoc, deleteDoc, query, where, orderBy, addDoc, increment, writeBatch } from "firebase/firestore";
 import { getStorage, ref, uploadString, getDownloadURL } from "firebase/storage";
 import dotenv from 'dotenv';
@@ -24,6 +25,13 @@ let db: any;
 let storage: any;
 try {
   const firebaseApp = initializeApp(firebaseConfig);
+  const auth = getAuth(firebaseApp);
+  
+  // Authenticate anonymously to securely access Firestore
+  signInAnonymously(auth)
+    .then(() => console.log("Servidor autenticado no Firebase com sucesso!"))
+    .catch((error) => console.error("Erro na autenticação do Firebase:", error));
+
   db = getFirestore(firebaseApp);
   storage = getStorage(firebaseApp);
 } catch (e) {
