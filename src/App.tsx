@@ -420,21 +420,6 @@ export default function App() {
             toast.success(`Novo cliente cadastrado: ${data.payload?.nomeCompleto || 'Desconhecido'}`, {
               description: 'Um novo cadastro foi realizado no sistema.',
               duration: 10000,
-              onClick: () => {
-                setView('admin_dashboard');
-                setAdminTab('clientes');
-                const foundClient = clientsRef.current.find(c => c.id === data.payload.id);
-                if (foundClient) {
-                  setSelectedClient(foundClient);
-                } else {
-                  fetch('/api/clients', { headers: { 'Authorization': `Bearer ${adminToken}` } })
-                    .then(res => res.json())
-                    .then(clientsData => {
-                      const client = clientsData.find((c: any) => c.id === data.payload.id);
-                      if (client) setSelectedClient(client);
-                    });
-                }
-              },
               action: {
                 label: 'Ver Cliente',
                 onClick: () => {
@@ -2819,7 +2804,7 @@ export default function App() {
       const newTipo = editTransactionData.tipo;
 
       try {
-        if (tipo === 'aporte' || tipo === 'retirada') {
+        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
           const adminClient = clients.find(c => c.id === 'admin-transactions');
           if (!adminClient) return;
           const updatedRetiradas = adminClient.dados.retiradas.map((t: any) => 
@@ -2829,9 +2814,20 @@ export default function App() {
           await saveClientUpdate(updatedClient);
         } else if (tipo === 'entrada') {
           const parts = id.split('-');
-          const cId = parts[1];
-          const sIdx = parseInt(parts[2]);
-          const pNum = parseInt(parts[3]);
+          const typePrefix = parts[0];
+          let cId, sIdx, pNum, aIdx;
+          if (typePrefix === 'a') {
+            aIdx = parseInt(parts.pop()!);
+            pNum = parseInt(parts.pop()!);
+            sIdx = parseInt(parts.pop()!);
+            parts.shift();
+            cId = parts.join('-');
+          } else {
+            pNum = parseInt(parts.pop()!);
+            sIdx = parseInt(parts.pop()!);
+            parts.shift();
+            cId = parts.join('-');
+          }
           
           const client = clients.find(c => c.id === cId);
           if (!client) return;
@@ -2841,19 +2837,28 @@ export default function App() {
           const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
           
           if (pIdx !== -1) {
-            updatedParcelas[pIdx] = { 
-              ...updatedParcelas[pIdx], 
-              valor: newVal,
-              dataPagamento: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
-            };
+            if (typePrefix === 'a') {
+              const abatimentos = [...(updatedParcelas[pIdx].abatimentos || [])];
+              if (abatimentos[aIdx!]) {
+                abatimentos[aIdx!] = { ...abatimentos[aIdx!], valor: newVal, data: newDate };
+                updatedParcelas[pIdx] = { ...updatedParcelas[pIdx], abatimentos };
+              }
+            } else {
+              updatedParcelas[pIdx] = { 
+                ...updatedParcelas[pIdx], 
+                valor: newVal,
+                dataPagamento: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
+              };
+            }
             updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
             const updatedClient = { ...client, simulacoes: updatedSimulacoes };
             await saveClientUpdate(updatedClient);
           }
         } else if (tipo === 'saida') {
           const parts = id.split('-');
-          const cId = parts[1];
-          const sIdx = parseInt(parts[2]);
+          const sIdx = parseInt(parts.pop()!);
+          parts.shift();
+          const cId = parts.join('-');
           
           const client = clients.find(c => c.id === cId);
           if (!client) return;
@@ -2869,9 +2874,9 @@ export default function App() {
         }
         
         setEditingTransaction(null);
-        alert('Lançamento corrigido com sucesso!');
+        toast.success('Lançamento corrigido com sucesso!');
       } catch (error) {
-        alert('Erro ao salvar correção.');
+        toast.error('Erro ao salvar correção.');
       }
     };
 
@@ -2880,7 +2885,7 @@ export default function App() {
 
       const performDelete = async () => {
         try {
-          if (tipo === 'aporte' || tipo === 'retirada') {
+          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
             const adminClient = clients.find(c => c.id === 'admin-transactions');
             if (!adminClient) return;
             const updatedRetiradas = adminClient.dados.retiradas.filter((t: any) => t.id !== id);
@@ -2888,9 +2893,20 @@ export default function App() {
             await saveClientUpdate(updatedClient);
           } else if (tipo === 'entrada') {
             const parts = id.split('-');
-            const cId = parts[1];
-            const sIdx = parseInt(parts[2]);
-            const pNum = parseInt(parts[3]);
+            const typePrefix = parts[0];
+            let cId, sIdx, pNum, aIdx;
+            if (typePrefix === 'a') {
+              aIdx = parseInt(parts.pop()!);
+              pNum = parseInt(parts.pop()!);
+              sIdx = parseInt(parts.pop()!);
+              parts.shift();
+              cId = parts.join('-');
+            } else {
+              pNum = parseInt(parts.pop()!);
+              sIdx = parseInt(parts.pop()!);
+              parts.shift();
+              cId = parts.join('-');
+            }
             
             const client = clients.find(c => c.id === cId);
             if (!client) return;
@@ -2900,21 +2916,28 @@ export default function App() {
             const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
             
             if (pIdx !== -1) {
-              // To "delete" an entry from flux, we mark it as not paid
-              updatedParcelas[pIdx] = { 
-                ...updatedParcelas[pIdx], 
-                paga: false,
-                status: 'pendente',
-                dataPagamento: null
-              };
+              if (typePrefix === 'a') {
+                const abatimentos = [...(updatedParcelas[pIdx].abatimentos || [])];
+                abatimentos.splice(aIdx!, 1);
+                updatedParcelas[pIdx] = { ...updatedParcelas[pIdx], abatimentos };
+              } else {
+                // To "delete" an entry from flux, we mark it as not paid
+                updatedParcelas[pIdx] = { 
+                  ...updatedParcelas[pIdx], 
+                  paga: false,
+                  status: 'pendente',
+                  dataPagamento: null
+                };
+              }
               updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
               const updatedClient = { ...client, simulacoes: updatedSimulacoes };
               await saveClientUpdate(updatedClient);
             }
           } else if (tipo === 'saida') {
             const parts = id.split('-');
-            const cId = parts[1];
-            const sIdx = parseInt(parts[2]);
+            const sIdx = parseInt(parts.pop()!);
+            parts.shift();
+            const cId = parts.join('-');
             
             const client = clients.find(c => c.id === cId);
             if (!client) return;
@@ -2925,10 +2948,10 @@ export default function App() {
             await saveClientUpdate(updatedClient);
           }
           setConfirmModal(null);
-          alert('Lançamento excluído com sucesso!');
+          toast.success('Lançamento excluído com sucesso!');
         } catch (error) {
           setConfirmModal(null);
-          alert('Erro ao excluir lançamento.');
+          toast.error('Erro ao excluir lançamento.');
         }
       };
 
@@ -5110,7 +5133,7 @@ export default function App() {
               </h3>
               
               <form onSubmit={handleSaveFluxoEdit} className="space-y-4">
-                {['aporte', 'retirada'].includes(editingTransaction.tipo) && (
+                {['aporte', 'retirada', 'despesa_prevista'].includes(editingTransaction.tipo) && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
                     <select 
@@ -5118,7 +5141,8 @@ export default function App() {
                       onChange={(e) => setEditTransactionData({...editTransactionData, tipo: e.target.value})}
                       className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 outline-none bg-white"
                     >
-                      <option value="retirada">Retirada / Despesa</option>
+                      <option value="retirada">Despesa Efetivada</option>
+                      <option value="despesa_prevista">Despesa Prevista</option>
                       <option value="aporte">Aporte (Entrada)</option>
                     </select>
                   </div>
