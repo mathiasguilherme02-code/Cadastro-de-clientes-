@@ -497,19 +497,35 @@ export default function App() {
 
   const sendMessage = async (clientId: string, text: string, sender: 'admin' | 'client', clientName?: string) => {
     if (!text.trim()) return;
+    
+    // Optimistic UI Update
+    const tempId = 'temp-' + Date.now();
+    const newMessage = {
+      id: tempId,
+      text,
+      sender,
+      timestamp: new Date().toISOString(),
+      read: true
+    };
+    
+    setChatMessages(prev => [...prev, newMessage]);
+    setChatInput('');
+
     try {
       const res = await fetch(`/api/chat/${clientId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, sender, clientName })
       });
-      if (res.ok) {
-        setChatInput('');
-        fetchMessages(clientId);
-        if (adminToken) fetchChats();
+      if (!res.ok) {
+        // Revert on failure
+        setChatMessages(prev => prev.filter(m => m.id !== tempId));
+        console.error("Failed to send message");
       }
     } catch (error) {
       console.error("Error sending message:", error);
+      // Revert on failure
+      setChatMessages(prev => prev.filter(m => m.id !== tempId));
     }
   };
 
