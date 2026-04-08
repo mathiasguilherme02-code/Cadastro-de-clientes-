@@ -236,7 +236,8 @@ export default function App() {
     taxaAtrasoDia: '8',
     tipoTaxa: 'mensal',
     dataInicial: getLocalISODate(),
-    dataVencimentoUnica: ''
+    dataVencimentoUnica: '',
+    valorParcela: ''
   });
 
   // Chat State
@@ -2977,7 +2978,8 @@ export default function App() {
       taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
       tipoTaxa: sim.tipoTaxa || adminSettings.tipoTaxa || 'diaria',
       dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate(),
-      dataVencimentoUnica: sim.prazo === 'única' && sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split('T')[0] : ''
+      dataVencimentoUnica: sim.prazo === 'única' && sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split('T')[0] : '',
+      valorParcela: sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].valor.toString() : ''
     });
   };
 
@@ -3018,8 +3020,12 @@ export default function App() {
     }
 
     const fatorTempo = isMensal ? (diasTotais / 30) : diasTotais;
-    const valorTotal = valor + (valor * (taxa / 100) * fatorTempo);
-    const valorParcela = valorTotal / qtd;
+    const valorTotalCalculado = valor + (valor * (taxa / 100) * fatorTempo);
+    
+    const valorParcelaManual = parseFloat(editSimData.valorParcela);
+    const valorParcela = (!isNaN(valorParcelaManual) && valorParcelaManual > 0) 
+      ? valorParcelaManual 
+      : (valorTotalCalculado / qtd);
 
     const updatedSimulacoes = [...selectedClient.simulacoes];
     const novasParcelas = [];
@@ -3720,6 +3726,16 @@ export default function App() {
                                   />
                                 </div>
                               )}
+                              <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Valor da Parcela (Opcional)</label>
+                                <input
+                                  type="number"
+                                  value={editSimData.valorParcela}
+                                  onChange={(e) => setEditSimData({...editSimData, valorParcela: e.target.value})}
+                                  placeholder="Calculado automaticamente"
+                                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                                />
+                              </div>
                               <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
                                   Taxa de Juros ao Mês (%)

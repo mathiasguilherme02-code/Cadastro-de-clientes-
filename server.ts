@@ -39,8 +39,14 @@ try {
 }
 
 // --- Firebase Client SDK Mock Wrappers ---
-const collection = (db: any, ...pathSegments: string[]) => db.collection(pathSegments.join('/'));
-const doc = (db: any, ...pathSegments: string[]) => db.doc(pathSegments.join('/'));
+const collection = (db: any, ...pathSegments: string[]) => {
+  if (!db) throw new Error("Database not initialized");
+  return db.collection(pathSegments.join('/'));
+};
+const doc = (db: any, ...pathSegments: string[]) => {
+  if (!db) throw new Error("Database not initialized");
+  return db.doc(pathSegments.join('/'));
+};
 const setDoc = (ref: any, data: any, options?: any) => options?.merge ? ref.set(data, { merge: true }) : ref.set(data);
 const getDoc = async (ref: any) => {
   const snap = await ref.get();
@@ -61,7 +67,10 @@ const addDoc = async (ref: any, data: any) => {
   return { id: docRef.id, ...docRef };
 };
 const increment = (n: number) => admin.firestore.FieldValue.increment(n);
-const writeBatch = (db: any) => db.batch();
+const writeBatch = (db: any) => {
+  if (!db) throw new Error("Database not initialized");
+  return db.batch();
+};
 
 const ref = (storage: any, path: string) => storage.file(path);
 const uploadString = async (fileRef: any, dataString: string, format: string) => {
@@ -174,6 +183,9 @@ app.post("/api/clients/login", async (req, res) => {
 // Get Admin Settings (Public, needed for simulation)
 app.get("/api/settings", async (req, res) => {
   try {
+    if (!db) {
+      return res.json({ taxaJuros: '40', taxaAtrasoDia: '8', tipoTaxa: 'mensal' });
+    }
     const docRef = doc(db, "admin_settings", "1");
     const docSnap = await getDoc(docRef);
       
@@ -204,6 +216,9 @@ app.put("/api/settings", requireAdmin, async (req, res) => {
 // Get All Clients (Protected)
 app.get("/api/clients", requireAdmin, async (req, res) => {
   try {
+    if (!db) {
+      return res.json([]);
+    }
     const q = query(collection(db, "clients"), orderBy("dataCadastro", "desc"));
     const querySnapshot = await getDocs(q);
       
