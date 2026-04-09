@@ -234,6 +234,28 @@ app.get("/api/clients", requireAdmin, async (req, res) => {
   }
 });
 
+// Get Single Client
+app.get("/api/clients/:id", async (req, res) => {
+  try {
+    if (!db) {
+      return res.status(500).json({ error: "Database not initialized" });
+    }
+    const docRef = doc(db, "clients", req.params.id);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      return res.status(404).json({ error: "Cliente não encontrado" });
+    }
+    
+    const data = docSnap.data();
+    const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
+    res.json({ ...clientData, id: docSnap.id });
+  } catch (error) {
+    console.error("Error fetching client:", error);
+    res.status(500).json({ error: "Falha ao buscar cliente" });
+  }
+});
+
 async function processClientFiles(client: any) {
   if (client.arquivos && Array.isArray(client.arquivos)) {
     for (let i = 0; i < client.arquivos.length; i++) {
