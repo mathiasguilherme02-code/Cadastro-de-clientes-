@@ -3028,7 +3028,7 @@ export default function App() {
       tipoTaxa: sim.tipoTaxa || adminSettings.tipoTaxa || 'diaria',
       dataInicial: sim.dataCriacao ? sim.dataCriacao.split('T')[0] : getLocalISODate(),
       dataVencimentoUnica: sim.prazo === 'única' && sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split('T')[0] : '',
-      valorParcela: sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].valor.toString() : ''
+      valorParcela: '' // Do not pre-fill, let it auto-calculate unless user overrides
     });
   };
 
@@ -3090,6 +3090,12 @@ export default function App() {
       const oldDataInicial = updatedSimulacoes[simIndex].dataCriacao ? updatedSimulacoes[simIndex].dataCriacao.split('T')[0] : '';
       const dateOrPrazoChanged = editSimData.dataInicial !== oldDataInicial || editSimData.prazo !== updatedSimulacoes[simIndex].prazo;
 
+      const isSameParams = 
+        editSimData.valorSolicitado.toString() === (updatedSimulacoes[simIndex].valorSolicitado || '').toString() &&
+        editSimData.taxaJuros.toString() === (updatedSimulacoes[simIndex].taxaJuros || '').toString() &&
+        editSimData.quantidade.toString() === (updatedSimulacoes[simIndex].quantidade || '').toString() &&
+        editSimData.prazo === updatedSimulacoes[simIndex].prazo;
+
       for (let i = 1; i <= qtd; i++) {
         let dataVencimento = new Date(dataAtual);
         if (editSimData.prazo === 'dia') {
@@ -3114,7 +3120,7 @@ export default function App() {
         novasParcelas.push({
           numero: i,
           dataVencimento: finalDataVencimento,
-          valor: existingParcela && existingParcela.valor !== valorParcela && editSimData.valorSolicitado === updatedSimulacoes[simIndex].valorSolicitado && editSimData.taxaJuros === updatedSimulacoes[simIndex].taxaJuros && editSimData.quantidade === updatedSimulacoes[simIndex].quantidade ? existingParcela.valor : valorParcela,
+          valor: (existingParcela && isSameParams && isNaN(valorParcelaManual)) ? existingParcela.valor : valorParcela,
           status: existingParcela ? existingParcela.status : 'pendente',
           paga: existingParcela ? existingParcela.paga : false,
           dataPagamento: existingParcela ? existingParcela.dataPagamento : undefined,
