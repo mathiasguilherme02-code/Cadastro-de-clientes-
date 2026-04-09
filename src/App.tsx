@@ -1105,79 +1105,68 @@ export default function App() {
       }] : []
     };
 
-    try {
-      const payloadString = JSON.stringify(newClient);
-      const payload = payloadString;
-      
     const url = isEditingClientData ? `/api/clients/${selectedClient.id}` : '/api/clients';
     const method = isEditingClientData ? 'PUT' : 'POST';
     
     let clientToSave = newClient;
     
-    try {
-      if (isEditingClientData) {
-        const fetchRes = await fetch(`/api/clients/${selectedClient.id}`);
-        if (fetchRes.ok) {
-          const latestClient = await fetchRes.json();
-          clientToSave = {
-            ...latestClient,
-            ...formData,
-            arquivos: fileUrls.length > 0 ? [...(latestClient.arquivos || []), ...fileUrls] : latestClient.arquivos
-          };
-        }
+    if (isEditingClientData) {
+      const fetchRes = await fetch(`/api/clients/${selectedClient.id}`);
+      if (fetchRes.ok) {
+        const latestClient = await fetchRes.json();
+        clientToSave = {
+          ...latestClient,
+          ...formData,
+          arquivos: fileUrls.length > 0 ? [...(latestClient.arquivos || []), ...fileUrls] : latestClient.arquivos
+        };
       }
-
-      const payloadString = JSON.stringify(clientToSave);
-      const payload = payloadString;
-      
-      const headers: any = { 'Content-Type': 'application/json' };
-      if (isEditingClientData && adminToken) {
-        headers['Authorization'] = `Bearer ${adminToken}`;
-      }
-
-      const response = await fetch(url, {
-        method,
-        headers,
-        body: payload
-      });
-      
-      if (!response.ok) {
-        let errorMsg = 'Erro desconhecido';
-        try {
-          const errorData = await response.json();
-          const details = errorData.details ? JSON.stringify(errorData.details) : '';
-          errorMsg = `${errorData.error} ${details}`;
-        } catch (e) {
-          errorMsg = `Status ${response.status}`;
-        }
-        alert(`Erro: ${errorMsg}`);
-        setIsSubmitting(false);
-        return;
-      }
-      
-      if (isEditingClientData) {
-        setClients(prev => prev.map(c => c.id === selectedClient.id ? clientToSave : c));
-        setSelectedClient(clientToSave);
-        setIsEditingClientData(false);
-        setView('admin');
-        alert('Dados do cliente atualizados com sucesso!');
-      } else {
-        setClients(prev => [clientToSave, ...prev]);
-        setShowSuccessModal(true);
-      }
-      
-      // Reset form
-      setFormData(initialFormData);
-      setCategorizedFiles({});
-    } catch (error: any) {
-      console.error("Erro ao salvar cliente:", error);
-      alert(`Ocorreu um erro de conexão ao salvar o cadastro. Verifique sua internet ou tente novamente.`);
-    } finally {
-      setIsSubmitting(false);
     }
+
+    const payload = JSON.stringify(clientToSave);
+    
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (isEditingClientData && adminToken) {
+      headers['Authorization'] = `Bearer ${adminToken}`;
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: payload
+    });
+    
+    if (!response.ok) {
+      let errorMsg = 'Erro desconhecido';
+      try {
+        const errorData = await response.json();
+        const details = errorData.details ? JSON.stringify(errorData.details) : '';
+        errorMsg = `${errorData.error} ${details}`;
+      } catch (e) {
+        errorMsg = `Status ${response.status}`;
+      }
+      alert(`Erro: ${errorMsg}`);
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (isEditingClientData) {
+      setClients(prev => prev.map(c => c.id === selectedClient.id ? clientToSave : c));
+      setSelectedClient(clientToSave);
+      setIsEditingClientData(false);
+      setView('admin');
+      alert('Dados do cliente atualizados com sucesso!');
+    } else {
+      setClients(prev => [clientToSave, ...prev]);
+      setShowSuccessModal(true);
+    }
+    
+    // Reset form
+    setFormData(initialFormData);
+    setCategorizedFiles({});
   } catch (error: any) {
-    console.error("Erro ao processar arquivos:", error);
-    alert(`Ocorreu um erro ao processar os arquivos. Tente enviar imagens menores.`);
+    console.error("Erro ao salvar cliente:", error);
+    alert(`Ocorreu um erro ao processar a solicitação. Verifique sua internet ou tente novamente.`);
+  } finally {
     setIsSubmitting(false);
   }
 };
