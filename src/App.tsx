@@ -870,9 +870,9 @@ export default function App() {
 
     setSimulacao(prev => ({ 
       ...prev, 
-      taxaJuros: adminSettings.taxaJuros,
-      taxaAtrasoDia: adminSettings.taxaAtrasoDia,
-      tipoTaxa: adminSettings.tipoTaxa || 'diaria',
+      taxaJuros: prev.taxaJuros || adminSettings.taxaJuros,
+      taxaAtrasoDia: prev.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
+      tipoTaxa: prev.tipoTaxa || adminSettings.tipoTaxa || 'diaria',
       parcelas: novasParcelas 
     }));
   };
@@ -1109,8 +1109,27 @@ export default function App() {
       const payloadString = JSON.stringify(newClient);
       const payload = payloadString;
       
-      const url = isEditingClientData ? `/api/clients/${selectedClient.id}` : '/api/clients';
-      const method = isEditingClientData ? 'PUT' : 'POST';
+    const url = isEditingClientData ? `/api/clients/${selectedClient.id}` : '/api/clients';
+    const method = isEditingClientData ? 'PUT' : 'POST';
+    
+    let clientToSave = newClient;
+    
+    try {
+      if (isEditingClientData) {
+        const fetchRes = await fetch(`/api/clients/${selectedClient.id}`);
+        if (fetchRes.ok) {
+          const latestClient = await fetchRes.json();
+          clientToSave = {
+            ...latestClient,
+            ...formData,
+            arquivos: fileUrls.length > 0 ? [...(latestClient.arquivos || []), ...fileUrls] : latestClient.arquivos
+          };
+        }
+      }
+
+      const payloadString = JSON.stringify(clientToSave);
+      const payload = payloadString;
+      
       const headers: any = { 'Content-Type': 'application/json' };
       if (isEditingClientData && adminToken) {
         headers['Authorization'] = `Bearer ${adminToken}`;
@@ -1137,13 +1156,13 @@ export default function App() {
       }
       
       if (isEditingClientData) {
-        setClients(prev => prev.map(c => c.id === selectedClient.id ? newClient : c));
-        setSelectedClient(newClient);
+        setClients(prev => prev.map(c => c.id === selectedClient.id ? clientToSave : c));
+        setSelectedClient(clientToSave);
         setIsEditingClientData(false);
         setView('admin');
         alert('Dados do cliente atualizados com sucesso!');
       } else {
-        setClients(prev => [newClient, ...prev]);
+        setClients(prev => [clientToSave, ...prev]);
         setShowSuccessModal(true);
       }
       
@@ -1242,49 +1261,57 @@ export default function App() {
     
     const simToUse = simulacaoOverride || simulacao;
 
-    if (!adminToken) {
-      const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-      const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado);
-      const hasBlockingLoan = activeLoans.some((s: any) => {
-        const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
-        return unpaidCount > 2;
-      });
-
-      if (hasBlockingLoan) {
-        setShowActiveLoanAlert(true);
-        return;
-      }
-    }
-
-    const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-    const novaSimulacao = { 
-      ...simToUse, 
-      status: adminToken ? 'aprovado' : 'pendente', 
-      clientAccepted: adminToken ? 'sim' : undefined,
-      dataCriacao: getLocalISODateTime() 
-    };
-    const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
-    
-    if (simToUse.isRenegociacao && simToUse.renegociadoFromSimIndices && simToUse.renegociadoFromSimIndices.length > 0) {
-      simToUse.renegociadoFromSimIndices.forEach((oldIndex: number) => {
-        const adjustedIndex = oldIndex + 1;
-        if (updatedSimulacoes[adjustedIndex]) {
-          updatedSimulacoes[adjustedIndex] = {
-            ...updatedSimulacoes[adjustedIndex],
-            status: 'renegociado',
-            arquivado: true,
-            anotacoes: (updatedSimulacoes[adjustedIndex].anotacoes || '') + `\n[${getLocalISODateTime()}] Renegociado para um novo empréstimo.`
-          };
-        }
-      });
-    }
-    
-    const updatedClient = {
-      ...selectedClient,
-      simulacoes: updatedSimulacoes
-    };
-    
     try {
+      const res = await fetch(`/api/clients/${selectedClient.id}`);
+      if (!res.ok) throw new Error('Failed to fetch latest client data');
+      const latestClient = await res.json();
+
+      if (!adminToken) {
+        const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+        const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado);
+        const hasBlockingLoan = activeLoans.some((s: any) => {
+          const unpaidCount = (s.parcelas || []).filter((p: any) => !p.paga).length;
+          return unpaidCount > 2;
+        });
+
+        if (hasBlockingLoan) {
+          setShowActiveLoanAlert(true);
+          return;
+        }
+      }
+
+      const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+      const novaSimulacao = { 
+        ...simToUse, 
+        status: adminToken ? 'aprovado' : 'pendente', 
+        clientAccepted: adminToken ? 'sim' : undefined,
+        dataCriacao: getLocalISODateTime() 
+      };
+      const updatedSimulacoes = [novaSimulacao, ...clientSimulacoes];
+      
+      if (simToUse.isRenegociacao && simToUse.renegociadoFromSimIndices && simToUse.renegociadoFromSimIndices.length > 0) {
+        // Find the simulations to renegociate by matching their data since indices might have changed
+        const originalSims = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+        const simsToMark = simToUse.renegociadoFromSimIndices.map((idx: number) => originalSims[idx]).filter(Boolean);
+
+        simsToMark.forEach((simToMark: any) => {
+          const indexInLatest = updatedSimulacoes.findIndex(s => s.dataCriacao === simToMark.dataCriacao && s.valorSolicitado === simToMark.valorSolicitado);
+          if (indexInLatest !== -1) {
+            updatedSimulacoes[indexInLatest] = {
+              ...updatedSimulacoes[indexInLatest],
+              status: 'renegociado',
+              arquivado: true,
+              anotacoes: (updatedSimulacoes[indexInLatest].anotacoes || '') + `\n[${getLocalISODateTime()}] Renegociado para um novo empréstimo.`
+            };
+          }
+        });
+      }
+      
+      const updatedClient = {
+        ...latestClient,
+        simulacoes: updatedSimulacoes
+      };
+      
       const success = await updateClientWithUndo(updatedClient, 'Adicionar Empréstimo');
       
       if (!success) {
@@ -1293,7 +1320,7 @@ export default function App() {
       }
       
       // Update local state
-      setClients(prev => prev.map(c => c.id === selectedClient.id ? updatedClient : c));
+      setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
       setSelectedClient(updatedClient);
       if (adminToken) {
         setView('admin');
