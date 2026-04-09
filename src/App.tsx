@@ -1364,16 +1364,20 @@ export default function App() {
       return;
     }
 
-    const updatedSimulacoes = selectedClient.simulacoes ? [...selectedClient.simulacoes] : [selectedClient.simulacao];
-    updatedSimulacoes[simIndex] = { 
-      ...updatedSimulacoes[simIndex], 
-      clientAccepted: accepted ? 'sim' : 'nao' 
-    };
-    
-    const updatedClient = { ...selectedClient, simulacoes: updatedSimulacoes };
-    console.log("Sending updated client:", updatedClient);
-    
     try {
+      const fetchRes = await fetch(`/api/clients/${selectedClient.id}`);
+      if (!fetchRes.ok) throw new Error('Failed to fetch latest client data');
+      const latestClient = await fetchRes.json();
+
+      const updatedSimulacoes = latestClient.simulacoes ? [...latestClient.simulacoes] : [latestClient.simulacao];
+      updatedSimulacoes[simIndex] = { 
+        ...updatedSimulacoes[simIndex], 
+        clientAccepted: accepted ? 'sim' : 'nao' 
+      };
+      
+      const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+      console.log("Sending updated client:", updatedClient);
+
       const res = await fetch(`/api/clients/${updatedClient.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -1386,7 +1390,7 @@ export default function App() {
         throw new Error(errData.error || 'Failed to update client');
       }
       setSelectedClient(updatedClient);
-      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
       
       if (accepted) {
         setClientActionMessage('Caro cliente, agora vá até nosso WhatsApp, informe que concluiu e mande a chave do PIx');
@@ -2269,43 +2273,54 @@ export default function App() {
 
   const handleAddAbatimento = async (simIndex: number, parcelaIndex: number) => {
     if (!newAbatimento.data || !newAbatimento.valor) {
-      alert('Preencha a data e o valor do abatimento.');
+      toast.error('Preencha a data e o valor do abatimento.');
       return;
     }
 
     const valorNum = parseFloat(newAbatimento.valor);
     if (isNaN(valorNum) || valorNum <= 0) {
-      alert('Valor inválido.');
+      toast.error('Valor inválido.');
       return;
     }
 
-    const updatedClients = clients.map(c => {
-      if (c.id === selectedClient.id) {
-        const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
-        const updatedSimulacoes = [...clientSimulacoes];
-        const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-        
-        const abatimentos = novasParcelas[parcelaIndex].abatimentos || [];
-        
-        novasParcelas[parcelaIndex] = {
-          ...novasParcelas[parcelaIndex],
-          abatimentos: [...abatimentos, { data: newAbatimento.data, valor: valorNum }]
-        };
-        
-        updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-        
-        const updatedClient = { ...c, simulacoes: updatedSimulacoes };
-        
-        // Save to API
-        updateClientWithUndo(updatedClient, 'Adicionar Abatimento');
-        return updatedClient;
+    if (!selectedClient) return;
+
+    try {
+      const res = await fetch(`/api/clients/${selectedClient.id}`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
+      });
+      if (!res.ok) throw new Error('Failed to fetch latest client data');
+      const latestClient = await res.json();
+
+      const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+      const updatedSimulacoes = [...clientSimulacoes];
+      const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+      
+      const abatimentos = novasParcelas[parcelaIndex].abatimentos || [];
+      
+      novasParcelas[parcelaIndex] = {
+        ...novasParcelas[parcelaIndex],
+        abatimentos: [...abatimentos, { data: newAbatimento.data, valor: valorNum }]
+      };
+      
+      updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+      
+      const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+      
+      const success = await updateClientWithUndo(updatedClient, 'Adicionar Abatimento');
+      if (success) {
+        setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
+        setSelectedClient(updatedClient);
+        setAddingAbatimento(null);
+        setNewAbatimento({ data: '', valor: '' });
+        toast.success('Abatimento adicionado com sucesso!');
+      } else {
+        throw new Error('Failed to update');
       }
-      return c;
-    });
-    
-    setClients(updatedClients);
-    setAddingAbatimento(null);
-    setNewAbatimento({ data: '', valor: '' });
+    } catch (error) {
+      console.error('Error adding abatimento:', error);
+      toast.error('Erro ao adicionar abatimento');
+    }
   };
 
   const handleRemoveAbatimento = async (simIndex: number, parcelaIndex: number, abatimentoIndex: number) => {
@@ -2314,33 +2329,42 @@ export default function App() {
       message: 'Tem certeza que deseja remover este abatimento?',
       type: 'danger',
       onConfirm: async () => {
-        setClients(prev => {
-          const updatedClients = prev.map(c => {
-            if (c.id === selectedClient.id) {
-              const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
-              const updatedSimulacoes = [...clientSimulacoes];
-              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-              
-              const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
-              abatimentos.splice(abatimentoIndex, 1);
-              
-              novasParcelas[parcelaIndex] = {
-                ...novasParcelas[parcelaIndex],
-                abatimentos
-              };
-              
-              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-              
-              const updatedClient = { ...c, simulacoes: updatedSimulacoes };
-              
-              // Save to API
-              updateClientWithUndo(updatedClient, 'Remover Abatimento');
-              return updatedClient;
-            }
-            return c;
+        if (!selectedClient) return;
+        try {
+          const res = await fetch(`/api/clients/${selectedClient.id}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
           });
-          return updatedClients;
-        });
+          if (!res.ok) throw new Error('Failed to fetch latest client data');
+          const latestClient = await res.json();
+
+          const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+          const updatedSimulacoes = [...clientSimulacoes];
+          const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+          
+          const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
+          abatimentos.splice(abatimentoIndex, 1);
+          
+          novasParcelas[parcelaIndex] = {
+            ...novasParcelas[parcelaIndex],
+            abatimentos
+          };
+          
+          updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+          
+          const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+          
+          const success = await updateClientWithUndo(updatedClient, 'Remover Abatimento');
+          if (success) {
+            setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
+            setSelectedClient(updatedClient);
+            toast.success('Abatimento removido com sucesso!');
+          } else {
+            throw new Error('Failed to update');
+          }
+        } catch (error) {
+          console.error('Error removing abatimento:', error);
+          toast.error('Erro ao remover abatimento');
+        }
         setConfirmModal(null);
       }
     });
@@ -3215,30 +3239,37 @@ export default function App() {
         return;
       }
 
-      const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
-      const updatedSimulacoes = [...clientSimulacoes];
-      updatedSimulacoes[simIndex] = {
-        ...updatedSimulacoes[simIndex],
-        status: aprovar ? 'aprovado' : 'reprovado'
-      };
-      
-      const updatedClient = {
-        ...selectedClient,
-        simulacoes: updatedSimulacoes
-      };
-      
       try {
+        const res = await fetch(`/api/clients/${selectedClient.id}`, {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch latest client data');
+        const latestClient = await res.json();
+
+        const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+        const updatedSimulacoes = [...clientSimulacoes];
+        updatedSimulacoes[simIndex] = {
+          ...updatedSimulacoes[simIndex],
+          status: aprovar ? 'aprovado' : 'reprovado'
+        };
+        
+        const updatedClient = {
+          ...latestClient,
+          simulacoes: updatedSimulacoes
+        };
+        
         const success = await updateClientWithUndo(updatedClient, aprovar ? 'Aprovar Empréstimo' : 'Reprovar Empréstimo');
         
         if (!success) {
           throw new Error('Falha ao atualizar status no servidor');
         }
         
-        setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
+        setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
         setSelectedClient(updatedClient);
+        toast.success(`Empréstimo ${aprovar ? 'aprovado' : 'reprovado'} com sucesso!`);
       } catch (error) {
         console.error("Erro ao atualizar status da simulação:", error);
-        alert("Erro ao atualizar status.");
+        toast.error("Erro ao atualizar status.");
       }
     };
 
@@ -3686,29 +3717,33 @@ export default function App() {
                               <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-sm font-medium ml-2">Arquivado</span>
                             )}
                             <button
-                              onClick={() => {
-                                const updatedClients = clients.map(c => {
-                                  if (c.id === selectedClient.id) {
-                                    const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
-                                    const updatedSimulacoes = [...clientSimulacoes];
-                                    updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], arquivado: !updatedSimulacoes[simIndex].arquivado };
-                                    const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+                              onClick={async () => {
+                                if (!selectedClient) return;
+                                try {
+                                  const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                    headers: { 'Authorization': `Bearer ${adminToken}` }
+                                  });
+                                  if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                  const latestClient = await res.json();
+
+                                  const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+                                  const updatedSimulacoes = [...clientSimulacoes];
+                                  const isNowArchived = !updatedSimulacoes[simIndex].arquivado;
+                                  updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], arquivado: isNowArchived };
+                                  const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+                                  
+                                  const success = await updateClientWithUndo(updatedClient, isNowArchived ? 'Arquivar Empréstimo' : 'Desarquivar Empréstimo');
+                                  if (success) {
+                                    setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
                                     setSelectedClient(updatedClient);
-                                    
-                                    fetch(`/api/clients/${updatedClient.id}`, {
-                                      method: 'PUT',
-                                      headers: { 
-                                        'Content-Type': 'application/json',
-                                        'Authorization': `Bearer ${adminToken}`
-                                      },
-                                      body: JSON.stringify(updatedClient)
-                                    }).catch(err => console.error("Erro ao arquivar:", err));
-                                    
-                                    return updatedClient;
+                                    toast.success(`Empréstimo ${isNowArchived ? 'arquivado' : 'desarquivado'} com sucesso!`);
+                                  } else {
+                                    throw new Error('Failed to update');
                                   }
-                                  return c;
-                                });
-                                setClients(updatedClients);
+                                } catch (error) {
+                                  console.error("Erro ao arquivar:", error);
+                                  toast.error('Erro ao atualizar status de arquivamento');
+                                }
                               }}
                               className={`ml-2 p-2 rounded-lg transition-colors ${sim.arquivado ? 'text-amber-500 hover:text-amber-700 hover:bg-amber-50' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
                               title={sim.arquivado ? "Desarquivar Empréstimo" : "Arquivar Empréstimo"}
@@ -3949,50 +3984,45 @@ export default function App() {
                                       type="checkbox" 
                                       checked={p.paga} 
                                       onChange={async () => {
-                                        const updatedClients = clients.map(c => {
-                                          if (c.id === selectedClient.id) {
-                                            const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
-                                            const updatedSimulacoes = [...clientSimulacoes];
-                                            const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-                                            const isNowPaid = !novasParcelas[i].paga;
-                                            novasParcelas[i] = { 
-                                              ...novasParcelas[i], 
-                                              paga: isNowPaid,
-                                              status: isNowPaid ? 'pago' : 'pendente',
-                                              dataPagamento: isNowPaid ? getLocalISODateTime() : null
-                                            };
-                                            if (isNowPaid && isVencida) {
-                                              novasParcelas[i].valor = valorAtualizado;
-                                            }
-                                            updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-                                            
-                                            const updatedClient = {
-                                              ...c,
-                                              simulacoes: updatedSimulacoes
-                                            };
-                                            
-                                            // Save to API
-                                            fetch(`/api/clients/${c.id}`, {
-                                              method: 'PUT',
-                                              headers: { 
-                                                'Content-Type': 'application/json',
-                                                'Authorization': `Bearer ${adminToken}`
-                                              },
-                                              body: JSON.stringify(updatedClient)
-                                            })
-                                            .then(res => {
-                                              if (!res.ok) {
-                                                alert('Erro ao atualizar status da parcela no banco de dados.');
-                                              }
-                                            })
-                                            .catch(err => console.error("Erro ao atualizar cliente:", err));
+                                        if (!selectedClient) return;
+                                        try {
+                                          const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                            headers: { 'Authorization': `Bearer ${adminToken}` }
+                                          });
+                                          if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                          const latestClient = await res.json();
 
-                                            setSelectedClient(updatedClient);
-                                            return updatedClient;
+                                          const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+                                          const updatedSimulacoes = [...clientSimulacoes];
+                                          const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                          const isNowPaid = !novasParcelas[i].paga;
+                                          novasParcelas[i] = { 
+                                            ...novasParcelas[i], 
+                                            paga: isNowPaid,
+                                            status: isNowPaid ? 'pago' : 'pendente',
+                                            dataPagamento: isNowPaid ? getLocalISODateTime() : null
+                                          };
+                                          if (isNowPaid && isVencida) {
+                                            novasParcelas[i].valor = valorAtualizado;
                                           }
-                                          return c;
-                                        });
-                                        setClients(updatedClients);
+                                          updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                          
+                                          const updatedClient = {
+                                            ...latestClient,
+                                            simulacoes: updatedSimulacoes
+                                          };
+                                          
+                                          const success = await updateClientWithUndo(updatedClient, `Marcar Parcela como ${isNowPaid ? 'Paga' : 'Pendente'}`);
+                                          if (success) {
+                                            setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
+                                            setSelectedClient(updatedClient);
+                                          } else {
+                                            throw new Error('Failed to update');
+                                          }
+                                        } catch (error) {
+                                          console.error('Error toggling payment:', error);
+                                          toast.error('Erro ao atualizar status da parcela');
+                                        }
                                       }}
                                       className="w-5 h-5 text-yellow-500 rounded focus:ring-yellow-500"
                                     />
@@ -4006,46 +4036,41 @@ export default function App() {
                                       <input
                                         type="checkbox"
                                         checked={p.jurosCongelados || false}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                           const isFrozen = e.target.checked;
-                                          const updatedClients = clients.map(c => {
-                                            if (c.id === selectedClient.id) {
-                                              const updatedSimulacoes = [...(c.simulacoes || (c.simulacao ? [c.simulacao] : []))];
-                                              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-                                              novasParcelas[i] = { 
-                                                ...novasParcelas[i], 
-                                                jurosCongelados: isFrozen,
-                                                dataCongelamento: isFrozen ? new Date().toISOString().split('T')[0] : undefined
-                                              };
-                                              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-                                              
-                                              const updatedClient = {
-                                                ...c,
-                                                simulacoes: updatedSimulacoes
-                                              };
-                                              
-                                              // Save to API
-                                              fetch(`/api/clients/${c.id}`, {
-                                                method: 'PUT',
-                                                headers: { 
-                                                  'Content-Type': 'application/json',
-                                                  'Authorization': `Bearer ${adminToken}`
-                                                },
-                                                body: JSON.stringify(updatedClient)
-                                              })
-                                              .then(res => {
-                                                if (!res.ok) {
-                                                  alert('Erro ao atualizar status da parcela no banco de dados.');
-                                                }
-                                              })
-                                              .catch(err => console.error("Erro ao atualizar cliente:", err));
+                                          if (!selectedClient) return;
+                                          try {
+                                            const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                              headers: { 'Authorization': `Bearer ${adminToken}` }
+                                            });
+                                            if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                            const latestClient = await res.json();
 
+                                            const updatedSimulacoes = [...(latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []))];
+                                            const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                            novasParcelas[i] = { 
+                                              ...novasParcelas[i], 
+                                              jurosCongelados: isFrozen,
+                                              dataCongelamento: isFrozen ? new Date().toISOString().split('T')[0] : undefined
+                                            };
+                                            updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                            
+                                            const updatedClient = {
+                                              ...latestClient,
+                                              simulacoes: updatedSimulacoes
+                                            };
+                                            
+                                            const success = await updateClientWithUndo(updatedClient, `Juros ${isFrozen ? 'Congelados' : 'Descongelados'}`);
+                                            if (success) {
+                                              setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
                                               setSelectedClient(updatedClient);
-                                              return updatedClient;
+                                            } else {
+                                              throw new Error('Failed to update');
                                             }
-                                            return c;
-                                          });
-                                          setClients(updatedClients);
+                                          } catch (error) {
+                                            console.error('Error toggling juros congelados:', error);
+                                            toast.error('Erro ao atualizar status de congelamento');
+                                          }
                                         }}
                                         className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
                                       />
@@ -4061,36 +4086,37 @@ export default function App() {
                                       <input
                                         type="date"
                                         value={p.dataCongelamento || ''}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                           const newDate = e.target.value;
-                                          const updatedClients = clients.map(c => {
-                                            if (c.id === selectedClient.id) {
-                                              const updatedSimulacoes = [...(c.simulacoes || (c.simulacao ? [c.simulacao] : []))];
-                                              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-                                              novasParcelas[i] = { 
-                                                ...novasParcelas[i], 
-                                                dataCongelamento: newDate
-                                              };
-                                              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-                                              
-                                              const updatedClient = { ...c, simulacoes: updatedSimulacoes };
-                                              
-                                              // Save to API
-                                              fetch(`/api/clients/${c.id}`, {
-                                                method: 'PUT',
-                                                headers: { 
-                                                  'Content-Type': 'application/json',
-                                                  'Authorization': `Bearer ${adminToken}`
-                                                },
-                                                body: JSON.stringify(updatedClient)
-                                              }).catch(err => console.error("Erro ao atualizar data de congelamento:", err));
+                                          if (!selectedClient) return;
+                                          try {
+                                            const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                              headers: { 'Authorization': `Bearer ${adminToken}` }
+                                            });
+                                            if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                            const latestClient = await res.json();
 
+                                            const updatedSimulacoes = [...(latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []))];
+                                            const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                            novasParcelas[i] = { 
+                                              ...novasParcelas[i], 
+                                              dataCongelamento: newDate
+                                            };
+                                            updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                            
+                                            const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+                                            
+                                            const success = await updateClientWithUndo(updatedClient, 'Atualizar Data de Congelamento');
+                                            if (success) {
+                                              setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
                                               setSelectedClient(updatedClient);
-                                              return updatedClient;
+                                            } else {
+                                              throw new Error('Failed to update');
                                             }
-                                            return c;
-                                          });
-                                          setClients(updatedClients);
+                                          } catch (error) {
+                                            console.error('Error updating dataCongelamento:', error);
+                                            toast.error('Erro ao atualizar data de congelamento');
+                                          }
                                         }}
                                         className="w-full px-2 py-1 border border-blue-200 rounded focus:ring-2 focus:ring-blue-500 outline-none bg-white text-slate-700"
                                       />
@@ -4139,51 +4165,43 @@ export default function App() {
                                       </button>
                                       <button
                                         onClick={async () => {
-                                          const updatedClients = clients.map(c => {
-                                            if (c.id === selectedClient.id) {
-                                              const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
-                                              const updatedSimulacoes = [...clientSimulacoes];
-                                              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-                                              novasParcelas[i] = { 
-                                                ...novasParcelas[i], 
-                                                dataVencimento: editParcelaData.dataVencimento, 
-                                                valor: editParcelaData.valor,
-                                                ...(p.paga && editParcelaData.dataPagamento ? { dataPagamento: editParcelaData.dataPagamento + 'T12:00:00.000Z' } : {})
-                                              };
-                                              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-                                              
-                                              const updatedClient = {
-                                                ...c,
-                                                simulacoes: updatedSimulacoes
-                                              };
-                                              
-                                              fetch(`/api/clients/${c.id}`, {
-                                                method: 'PUT',
-                                                headers: { 
-                                                  'Content-Type': 'application/json',
-                                                  'Authorization': `Bearer ${adminToken}`
-                                                },
-                                                body: JSON.stringify(updatedClient)
-                                              })
-                                              .then(res => {
-                                                if (res.ok) {
-                                                  alert('Parcela atualizada com sucesso!');
-                                                } else {
-                                                  alert('Erro ao atualizar parcela no banco de dados.');
-                                                }
-                                              })
-                                              .catch(err => {
-                                                console.error("Erro ao atualizar cliente:", err);
-                                                alert('Erro de conexão ao atualizar parcela.');
-                                              });
+                                          if (!selectedClient) return;
+                                          try {
+                                            const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                              headers: { 'Authorization': `Bearer ${adminToken}` }
+                                            });
+                                            if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                            const latestClient = await res.json();
 
+                                            const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+                                            const updatedSimulacoes = [...clientSimulacoes];
+                                            const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+                                            novasParcelas[i] = { 
+                                              ...novasParcelas[i], 
+                                              dataVencimento: editParcelaData.dataVencimento, 
+                                              valor: editParcelaData.valor,
+                                              ...(p.paga && editParcelaData.dataPagamento ? { dataPagamento: editParcelaData.dataPagamento + 'T12:00:00.000Z' } : {})
+                                            };
+                                            updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+                                            
+                                            const updatedClient = {
+                                              ...latestClient,
+                                              simulacoes: updatedSimulacoes
+                                            };
+                                            
+                                            const success = await updateClientWithUndo(updatedClient, 'Editar Parcela');
+                                            if (success) {
+                                              setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
                                               setSelectedClient(updatedClient);
-                                              return updatedClient;
+                                              setEditingParcela(null);
+                                              toast.success('Parcela atualizada com sucesso!');
+                                            } else {
+                                              throw new Error('Failed to update');
                                             }
-                                            return c;
-                                          });
-                                          setClients(updatedClients);
-                                          setEditingParcela(null);
+                                          } catch (error) {
+                                            console.error('Error updating parcela:', error);
+                                            toast.error('Erro ao atualizar parcela');
+                                          }
                                         }}
                                         className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-yellow-500 hover:bg-yellow-600 rounded transition-colors"
                                       >
@@ -4347,30 +4365,43 @@ export default function App() {
                             placeholder="Adicione anotações sobre este empréstimo..."
                             value={sim.anotacoes || ''}
                             onChange={(e) => {
-                              const updatedClients = clients.map(c => {
+                              const newValue = e.target.value;
+                              setClients(prev => prev.map(c => {
                                 if (c.id === selectedClient.id) {
                                   const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
                                   const updatedSimulacoes = [...clientSimulacoes];
-                                  updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: e.target.value };
+                                  updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: newValue };
                                   const updatedClient = { ...c, simulacoes: updatedSimulacoes };
                                   setSelectedClient(updatedClient);
                                   return updatedClient;
                                 }
                                 return c;
-                              });
-                              setClients(updatedClients);
+                              }));
                             }}
-                            onBlur={() => {
-                              const clientToUpdate = clients.find(c => c.id === selectedClient.id);
-                              if (clientToUpdate) {
-                                fetch(`/api/clients/${clientToUpdate.id}`, {
+                            onBlur={async () => {
+                              if (!selectedClient) return;
+                              try {
+                                const res = await fetch(`/api/clients/${selectedClient.id}`, {
+                                  headers: { 'Authorization': `Bearer ${adminToken}` }
+                                });
+                                if (!res.ok) throw new Error('Failed to fetch latest client data');
+                                const latestClient = await res.json();
+
+                                const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+                                const updatedSimulacoes = [...clientSimulacoes];
+                                updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: sim.anotacoes };
+                                const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+                                
+                                await fetch(`/api/clients/${updatedClient.id}`, {
                                   method: 'PUT',
                                   headers: { 
                                     'Content-Type': 'application/json',
                                     'Authorization': `Bearer ${adminToken}`
                                   },
-                                  body: JSON.stringify(clientToUpdate)
-                                }).catch(err => console.error("Erro ao salvar anotações:", err));
+                                  body: JSON.stringify(updatedClient)
+                                });
+                              } catch (error) {
+                                console.error("Erro ao salvar anotações:", error);
                               }
                             }}
                           />
