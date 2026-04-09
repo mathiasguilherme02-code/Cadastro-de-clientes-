@@ -144,7 +144,7 @@ export default function App() {
       if (res.ok) {
         setSelectedClient(updatedClient);
         if (adminToken) {
-          setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+          setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
         }
         
         triggerUndo(actionName, async () => {
@@ -156,7 +156,7 @@ export default function App() {
           if (revertRes.ok) {
             setSelectedClient(previousClientState);
             if (adminToken) {
-              setClients(clients.map(c => c.id === previousClientState.id ? previousClientState : c));
+              setClients(prev => prev.map(c => c.id === previousClientState.id ? previousClientState : c));
             }
           }
         });
@@ -2281,7 +2281,8 @@ export default function App() {
 
     const updatedClients = clients.map(c => {
       if (c.id === selectedClient.id) {
-        const updatedSimulacoes = [...c.simulacoes];
+        const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+        const updatedSimulacoes = [...clientSimulacoes];
         const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
         
         const abatimentos = novasParcelas[parcelaIndex].abatimentos || [];
@@ -2308,33 +2309,41 @@ export default function App() {
   };
 
   const handleRemoveAbatimento = async (simIndex: number, parcelaIndex: number, abatimentoIndex: number) => {
-    if (!confirm('Tem certeza que deseja remover este abatimento?')) return;
-
-    const updatedClients = clients.map(c => {
-      if (c.id === selectedClient.id) {
-        const updatedSimulacoes = [...c.simulacoes];
-        const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
-        
-        const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
-        abatimentos.splice(abatimentoIndex, 1);
-        
-        novasParcelas[parcelaIndex] = {
-          ...novasParcelas[parcelaIndex],
-          abatimentos
-        };
-        
-        updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
-        
-        const updatedClient = { ...c, simulacoes: updatedSimulacoes };
-        
-        // Save to API
-        updateClientWithUndo(updatedClient, 'Remover Abatimento');
-        return updatedClient;
+    setConfirmModal({
+      title: 'Remover Abatimento',
+      message: 'Tem certeza que deseja remover este abatimento?',
+      type: 'danger',
+      onConfirm: async () => {
+        setClients(prev => {
+          const updatedClients = prev.map(c => {
+            if (c.id === selectedClient.id) {
+              const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+              const updatedSimulacoes = [...clientSimulacoes];
+              const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
+              
+              const abatimentos = [...(novasParcelas[parcelaIndex].abatimentos || [])];
+              abatimentos.splice(abatimentoIndex, 1);
+              
+              novasParcelas[parcelaIndex] = {
+                ...novasParcelas[parcelaIndex],
+                abatimentos
+              };
+              
+              updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], parcelas: novasParcelas };
+              
+              const updatedClient = { ...c, simulacoes: updatedSimulacoes };
+              
+              // Save to API
+              updateClientWithUndo(updatedClient, 'Remover Abatimento');
+              return updatedClient;
+            }
+            return c;
+          });
+          return updatedClients;
+        });
+        setConfirmModal(null);
       }
-      return c;
     });
-    
-    setClients(updatedClients);
   };
 
   const handleDeleteClient = async (id: string) => {
@@ -2350,7 +2359,7 @@ export default function App() {
       });
       
       if (res.ok) {
-        setClients(clients.filter(c => c.id !== id));
+        setClients(prev => prev.filter(c => c.id !== id));
         setConfirmModal(null);
         if (selectedClient && selectedClient.id === id) {
           setSelectedClient(null);
@@ -2760,7 +2769,7 @@ export default function App() {
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
             body: JSON.stringify(updatedClient)
           });
-          setClients(clients.map(c => c.id === adminClient.id ? updatedClient : c));
+          setClients(prev => prev.map(c => c.id === adminClient.id ? updatedClient : c));
         } else {
           const newAdminClient = {
             id: 'admin-transactions',
@@ -2804,36 +2813,46 @@ export default function App() {
       const newTipo = editTransactionData.tipo;
 
       try {
+        let cId = '';
+        let sIdx, pNum, aIdx;
+        const parts = id.split('-');
+        const typePrefix = parts[0];
+        
         if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
-          const adminClient = clients.find(c => c.id === 'admin-transactions');
-          if (!adminClient) return;
-          const updatedRetiradas = adminClient.dados.retiradas.map((t: any) => 
+          cId = 'admin-transactions';
+        } else if (tipo === 'entrada') {
+          if (typePrefix === 'a') {
+            aIdx = parseInt(parts[parts.length - 1]);
+            pNum = parseInt(parts[parts.length - 2]);
+            sIdx = parseInt(parts[parts.length - 3]);
+            cId = parts.slice(1, -3).join('-');
+          } else {
+            pNum = parseInt(parts[parts.length - 1]);
+            sIdx = parseInt(parts[parts.length - 2]);
+            cId = parts.slice(1, -2).join('-');
+          }
+        } else if (tipo === 'saida') {
+          sIdx = parseInt(parts[parts.length - 1]);
+          cId = parts.slice(1, -1).join('-');
+        }
+
+        const res = await fetch(`/api/clients/${cId}`, {
+          headers: { 'Authorization': `Bearer ${adminToken}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch client');
+        const client = await res.json();
+        
+        let updatedClient;
+
+        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+          const updatedRetiradas = (client.dados?.retiradas || []).map((t: any) => 
             t.id === id ? { ...t, valor: newVal, descricao: newDesc, data: newDate, tipo: newTipo } : t
           );
-          const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
-          await saveClientUpdate(updatedClient);
+          updatedClient = { ...client, dados: { ...client.dados, retiradas: updatedRetiradas } };
         } else if (tipo === 'entrada') {
-          const parts = id.split('-');
-          const typePrefix = parts[0];
-          let cId, sIdx, pNum, aIdx;
-          if (typePrefix === 'a') {
-            aIdx = parseInt(parts.pop()!);
-            pNum = parseInt(parts.pop()!);
-            sIdx = parseInt(parts.pop()!);
-            parts.shift();
-            cId = parts.join('-');
-          } else {
-            pNum = parseInt(parts.pop()!);
-            sIdx = parseInt(parts.pop()!);
-            parts.shift();
-            cId = parts.join('-');
-          }
-          
-          const client = clients.find(c => c.id === cId);
-          if (!client) return;
-          
-          const updatedSimulacoes = [...client.simulacoes];
-          const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
+          const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
+          const updatedSimulacoes = [...clientSimulacoes];
+          const updatedParcelas = [...(updatedSimulacoes[sIdx!]?.parcelas || [])];
           const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
           
           if (pIdx !== -1) {
@@ -2850,26 +2869,27 @@ export default function App() {
                 dataPagamento: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
               };
             }
-            updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
-            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
-            await saveClientUpdate(updatedClient);
+            updatedSimulacoes[sIdx!] = { ...updatedSimulacoes[sIdx!], parcelas: updatedParcelas };
+            updatedClient = { ...client, simulacoes: updatedSimulacoes };
+          } else {
+            updatedClient = client;
           }
         } else if (tipo === 'saida') {
-          const parts = id.split('-');
-          const sIdx = parseInt(parts.pop()!);
-          parts.shift();
-          const cId = parts.join('-');
-          
-          const client = clients.find(c => c.id === cId);
-          if (!client) return;
-          
-          const updatedSimulacoes = [...client.simulacoes];
-          updatedSimulacoes[sIdx] = { 
-            ...updatedSimulacoes[sIdx], 
-            valorSolicitado: newVal.toString(),
-            dataCriacao: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
-          };
-          const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+          const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
+          const updatedSimulacoes = [...clientSimulacoes];
+          if (updatedSimulacoes[sIdx!]) {
+            updatedSimulacoes[sIdx!] = { 
+              ...updatedSimulacoes[sIdx!], 
+              valorSolicitado: newVal.toString(),
+              dataCriacao: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
+            };
+            updatedClient = { ...client, simulacoes: updatedSimulacoes };
+          } else {
+            updatedClient = client;
+          }
+        }
+        
+        if (updatedClient) {
           await saveClientUpdate(updatedClient);
         }
         
@@ -2885,34 +2905,44 @@ export default function App() {
 
       const performDelete = async () => {
         try {
+          let cId = '';
+          let sIdx, pNum, aIdx;
+          const parts = id.split('-');
+          const typePrefix = parts[0];
+          
           if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
-            const adminClient = clients.find(c => c.id === 'admin-transactions');
-            if (!adminClient) return;
-            const updatedRetiradas = adminClient.dados.retiradas.filter((t: any) => t.id !== id);
-            const updatedClient = { ...adminClient, dados: { ...adminClient.dados, retiradas: updatedRetiradas } };
-            await saveClientUpdate(updatedClient);
+            cId = 'admin-transactions';
           } else if (tipo === 'entrada') {
-            const parts = id.split('-');
-            const typePrefix = parts[0];
-            let cId, sIdx, pNum, aIdx;
             if (typePrefix === 'a') {
-              aIdx = parseInt(parts.pop()!);
-              pNum = parseInt(parts.pop()!);
-              sIdx = parseInt(parts.pop()!);
-              parts.shift();
-              cId = parts.join('-');
+              aIdx = parseInt(parts[parts.length - 1]);
+              pNum = parseInt(parts[parts.length - 2]);
+              sIdx = parseInt(parts[parts.length - 3]);
+              cId = parts.slice(1, -3).join('-');
             } else {
-              pNum = parseInt(parts.pop()!);
-              sIdx = parseInt(parts.pop()!);
-              parts.shift();
-              cId = parts.join('-');
+              pNum = parseInt(parts[parts.length - 1]);
+              sIdx = parseInt(parts[parts.length - 2]);
+              cId = parts.slice(1, -2).join('-');
             }
-            
-            const client = clients.find(c => c.id === cId);
-            if (!client) return;
-            
-            const updatedSimulacoes = [...client.simulacoes];
-            const updatedParcelas = [...updatedSimulacoes[sIdx].parcelas];
+          } else if (tipo === 'saida') {
+            sIdx = parseInt(parts[parts.length - 1]);
+            cId = parts.slice(1, -1).join('-');
+          }
+
+          const res = await fetch(`/api/clients/${cId}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          });
+          if (!res.ok) throw new Error('Failed to fetch client');
+          const client = await res.json();
+
+          let updatedClient;
+
+          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+            const updatedRetiradas = (client.dados?.retiradas || []).filter((t: any) => t.id !== id);
+            updatedClient = { ...client, dados: { ...client.dados, retiradas: updatedRetiradas } };
+          } else if (tipo === 'entrada') {
+            const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
+            const updatedSimulacoes = [...clientSimulacoes];
+            const updatedParcelas = [...(updatedSimulacoes[sIdx!]?.parcelas || [])];
             const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
             
             if (pIdx !== -1) {
@@ -2921,7 +2951,6 @@ export default function App() {
                 abatimentos.splice(aIdx!, 1);
                 updatedParcelas[pIdx] = { ...updatedParcelas[pIdx], abatimentos };
               } else {
-                // To "delete" an entry from flux, we mark it as not paid
                 updatedParcelas[pIdx] = { 
                   ...updatedParcelas[pIdx], 
                   paga: false,
@@ -2929,22 +2958,19 @@ export default function App() {
                   dataPagamento: null
                 };
               }
-              updatedSimulacoes[sIdx] = { ...updatedSimulacoes[sIdx], parcelas: updatedParcelas };
-              const updatedClient = { ...client, simulacoes: updatedSimulacoes };
-              await saveClientUpdate(updatedClient);
+              updatedSimulacoes[sIdx!] = { ...updatedSimulacoes[sIdx!], parcelas: updatedParcelas };
+              updatedClient = { ...client, simulacoes: updatedSimulacoes };
+            } else {
+              updatedClient = client;
             }
           } else if (tipo === 'saida') {
-            const parts = id.split('-');
-            const sIdx = parseInt(parts.pop()!);
-            parts.shift();
-            const cId = parts.join('-');
-            
-            const client = clients.find(c => c.id === cId);
-            if (!client) return;
-            
-            const updatedSimulacoes = [...client.simulacoes];
-            updatedSimulacoes.splice(sIdx, 1);
-            const updatedClient = { ...client, simulacoes: updatedSimulacoes };
+            const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
+            const updatedSimulacoes = [...clientSimulacoes];
+            updatedSimulacoes.splice(sIdx!, 1);
+            updatedClient = { ...client, simulacoes: updatedSimulacoes };
+          }
+
+          if (updatedClient) {
             await saveClientUpdate(updatedClient);
           }
           setConfirmModal(null);
@@ -2985,7 +3011,7 @@ export default function App() {
         body: JSON.stringify(updatedClient)
       });
       if (!response.ok) throw new Error('Failed to update');
-      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
+      setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
       if (selectedClient && selectedClient.id === updatedClient.id) {
         setSelectedClient(updatedClient);
       }
@@ -3050,78 +3076,79 @@ export default function App() {
       ? valorParcelaManual 
       : (valorTotalCalculado / qtd);
 
-    const updatedSimulacoes = [...selectedClient.simulacoes];
-    const novasParcelas = [];
-    const existingParcelas = updatedSimulacoes[simIndex].parcelas || [];
-    const oldDataInicial = updatedSimulacoes[simIndex].dataCriacao ? updatedSimulacoes[simIndex].dataCriacao.split('T')[0] : '';
-    const dateOrPrazoChanged = editSimData.dataInicial !== oldDataInicial || editSimData.prazo !== updatedSimulacoes[simIndex].prazo;
-
-    for (let i = 1; i <= qtd; i++) {
-      let dataVencimento = new Date(dataAtual);
-      if (editSimData.prazo === 'dia') {
-        dataVencimento.setDate(dataVencimento.getDate() + i);
-      } else if (editSimData.prazo === 'semanal') {
-        dataVencimento.setDate(dataVencimento.getDate() + (i * 7));
-      } else if (editSimData.prazo === 'quinzenal') {
-        dataVencimento.setDate(dataVencimento.getDate() + (i * 15));
-      } else if (editSimData.prazo === 'mensal') {
-        dataVencimento.setMonth(dataVencimento.getMonth() + i);
-      } else if (editSimData.prazo === 'única') {
-        dataVencimento = parseLocalDate(editSimData.dataVencimentoUnica);
-      }
-
-      const existingParcela = existingParcelas.find((p: any) => p.numero === i);
-      
-      let finalDataVencimento = getLocalISODate(dataVencimento);
-      if (existingParcela && !dateOrPrazoChanged) {
-        finalDataVencimento = existingParcela.dataVencimento;
-      }
-
-      novasParcelas.push({
-        numero: i,
-        dataVencimento: finalDataVencimento,
-        valor: existingParcela && existingParcela.valor !== valorParcela && editSimData.valorSolicitado === updatedSimulacoes[simIndex].valorSolicitado && editSimData.taxaJuros === updatedSimulacoes[simIndex].taxaJuros && editSimData.quantidade === updatedSimulacoes[simIndex].quantidade ? existingParcela.valor : valorParcela,
-        status: existingParcela ? existingParcela.status : 'pendente',
-        paga: existingParcela ? existingParcela.paga : false,
-        dataPagamento: existingParcela ? existingParcela.dataPagamento : undefined,
-        abatimentos: existingParcela ? existingParcela.abatimentos : undefined,
-        jurosCongelados: existingParcela ? existingParcela.jurosCongelados : undefined,
-        dataCongelamento: existingParcela ? existingParcela.dataCongelamento : undefined
-      });
-    }
-
-    updatedSimulacoes[simIndex] = {
-      ...updatedSimulacoes[simIndex],
-      ...editSimData,
-      dataCriacao: editSimData.dataInicial ? `${editSimData.dataInicial}T00:00:00` : updatedSimulacoes[simIndex].dataCriacao,
-      parcelas: novasParcelas
-    };
-
-    const updatedClient = {
-      ...selectedClient,
-      simulacoes: updatedSimulacoes
-    };
-
     try {
-      const response = await fetch(`/api/clients/${selectedClient.id}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${adminToken}`
-        },
-        body: JSON.stringify(updatedClient)
+      const res = await fetch(`/api/clients/${selectedClient.id}`, {
+        headers: { 'Authorization': `Bearer ${adminToken}` }
       });
+      if (!res.ok) throw new Error('Failed to fetch latest client data');
+      const latestClient = await res.json();
+
+      const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+      const updatedSimulacoes = [...clientSimulacoes];
+      const novasParcelas = [];
+      const existingParcelas = updatedSimulacoes[simIndex].parcelas || [];
+      const oldDataInicial = updatedSimulacoes[simIndex].dataCriacao ? updatedSimulacoes[simIndex].dataCriacao.split('T')[0] : '';
+      const dateOrPrazoChanged = editSimData.dataInicial !== oldDataInicial || editSimData.prazo !== updatedSimulacoes[simIndex].prazo;
+
+      for (let i = 1; i <= qtd; i++) {
+        let dataVencimento = new Date(dataAtual);
+        if (editSimData.prazo === 'dia') {
+          dataVencimento.setDate(dataVencimento.getDate() + i);
+        } else if (editSimData.prazo === 'semanal') {
+          dataVencimento.setDate(dataVencimento.getDate() + (i * 7));
+        } else if (editSimData.prazo === 'quinzenal') {
+          dataVencimento.setDate(dataVencimento.getDate() + (i * 15));
+        } else if (editSimData.prazo === 'mensal') {
+          dataVencimento.setMonth(dataVencimento.getMonth() + i);
+        } else if (editSimData.prazo === 'única') {
+          dataVencimento = parseLocalDate(editSimData.dataVencimentoUnica);
+        }
+
+        const existingParcela = existingParcelas.find((p: any) => p.numero === i);
+        
+        let finalDataVencimento = getLocalISODate(dataVencimento);
+        if (existingParcela && !dateOrPrazoChanged) {
+          finalDataVencimento = existingParcela.dataVencimento;
+        }
+
+        novasParcelas.push({
+          numero: i,
+          dataVencimento: finalDataVencimento,
+          valor: existingParcela && existingParcela.valor !== valorParcela && editSimData.valorSolicitado === updatedSimulacoes[simIndex].valorSolicitado && editSimData.taxaJuros === updatedSimulacoes[simIndex].taxaJuros && editSimData.quantidade === updatedSimulacoes[simIndex].quantidade ? existingParcela.valor : valorParcela,
+          status: existingParcela ? existingParcela.status : 'pendente',
+          paga: existingParcela ? existingParcela.paga : false,
+          dataPagamento: existingParcela ? existingParcela.dataPagamento : undefined,
+          abatimentos: existingParcela ? existingParcela.abatimentos : undefined,
+          jurosCongelados: existingParcela ? existingParcela.jurosCongelados : undefined,
+          dataCongelamento: existingParcela ? existingParcela.dataCongelamento : undefined
+        });
+      }
+
+      updatedSimulacoes[simIndex] = {
+        ...updatedSimulacoes[simIndex],
+        ...editSimData,
+        dataCriacao: editSimData.dataInicial ? `${editSimData.dataInicial}T00:00:00` : updatedSimulacoes[simIndex].dataCriacao,
+        parcelas: novasParcelas
+      };
+
+      const updatedClient = {
+        ...latestClient,
+        simulacoes: updatedSimulacoes
+      };
+
+      const success = await updateClientWithUndo(updatedClient, 'Editar Empréstimo');
       
-      if (!response.ok) {
+      if (!success) {
         throw new Error('Falha ao salvar edição no servidor');
       }
       
+      setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
       setSelectedClient(updatedClient);
-      setClients(clients.map(c => c.id === updatedClient.id ? updatedClient : c));
       setEditingSimIndex(null);
+      toast.success('Empréstimo salvo com sucesso!');
     } catch (error) {
       console.error("Erro ao salvar simulação:", error);
-      alert('Erro ao salvar empréstimo.');
+      toast.error('Erro ao salvar empréstimo.');
     }
   };
 
@@ -3136,29 +3163,37 @@ export default function App() {
       cancelText: 'Cancelar',
       type: 'danger',
       onConfirm: async () => {
-        const updatedSimulacoes = [...selectedClient.simulacoes];
-        updatedSimulacoes.splice(simIndex, 1);
-        
-        const updatedClient = {
-          ...selectedClient,
-          simulacoes: updatedSimulacoes,
-          simulacao: null
-        };
-        
         try {
+          const res = await fetch(`/api/clients/${selectedClient.id}`, {
+            headers: { 'Authorization': `Bearer ${adminToken}` }
+          });
+          if (!res.ok) throw new Error('Failed to fetch latest client data');
+          const latestClient = await res.json();
+
+          const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+          const updatedSimulacoes = [...clientSimulacoes];
+          updatedSimulacoes.splice(simIndex, 1);
+          
+          const updatedClient = {
+            ...latestClient,
+            simulacoes: updatedSimulacoes,
+            simulacao: null
+          };
+          
           const success = await updateClientWithUndo(updatedClient, 'Excluir Empréstimo');
           
           if (!success) {
             throw new Error('Falha ao excluir empréstimo no servidor');
           }
           
-          setClients(clients.map(c => c.id === selectedClient.id ? updatedClient : c));
+          setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
           setSelectedClient(updatedClient);
           setConfirmModal(null);
+          toast.success('Empréstimo excluído com sucesso!');
         } catch (error) {
           console.error('Error deleting simulacao:', error);
           setConfirmModal(null);
-          alert('Erro ao excluir empréstimo. Tente novamente.');
+          toast.error('Erro ao excluir empréstimo. Tente novamente.');
         }
       }
     });
@@ -3174,7 +3209,8 @@ export default function App() {
         return;
       }
 
-      const updatedSimulacoes = [...selectedClient.simulacoes];
+      const clientSimulacoes = selectedClient.simulacoes || (selectedClient.simulacao ? [selectedClient.simulacao] : []);
+      const updatedSimulacoes = [...clientSimulacoes];
       updatedSimulacoes[simIndex] = {
         ...updatedSimulacoes[simIndex],
         status: aprovar ? 'aprovado' : 'reprovado'
@@ -3647,7 +3683,8 @@ export default function App() {
                               onClick={() => {
                                 const updatedClients = clients.map(c => {
                                   if (c.id === selectedClient.id) {
-                                    const updatedSimulacoes = [...c.simulacoes];
+                                    const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+                                    const updatedSimulacoes = [...clientSimulacoes];
                                     updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], arquivado: !updatedSimulacoes[simIndex].arquivado };
                                     const updatedClient = { ...c, simulacoes: updatedSimulacoes };
                                     setSelectedClient(updatedClient);
@@ -3908,7 +3945,8 @@ export default function App() {
                                       onChange={async () => {
                                         const updatedClients = clients.map(c => {
                                           if (c.id === selectedClient.id) {
-                                            const updatedSimulacoes = [...c.simulacoes];
+                                            const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+                                            const updatedSimulacoes = [...clientSimulacoes];
                                             const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
                                             const isNowPaid = !novasParcelas[i].paga;
                                             novasParcelas[i] = { 
@@ -4097,7 +4135,8 @@ export default function App() {
                                         onClick={async () => {
                                           const updatedClients = clients.map(c => {
                                             if (c.id === selectedClient.id) {
-                                              const updatedSimulacoes = [...c.simulacoes];
+                                              const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+                                              const updatedSimulacoes = [...clientSimulacoes];
                                               const novasParcelas = [...updatedSimulacoes[simIndex].parcelas];
                                               novasParcelas[i] = { 
                                                 ...novasParcelas[i], 
@@ -4304,7 +4343,8 @@ export default function App() {
                             onChange={(e) => {
                               const updatedClients = clients.map(c => {
                                 if (c.id === selectedClient.id) {
-                                  const updatedSimulacoes = [...c.simulacoes];
+                                  const clientSimulacoes = c.simulacoes || (c.simulacao ? [c.simulacao] : []);
+                                  const updatedSimulacoes = [...clientSimulacoes];
                                   updatedSimulacoes[simIndex] = { ...updatedSimulacoes[simIndex], anotacoes: e.target.value };
                                   const updatedClient = { ...c, simulacoes: updatedSimulacoes };
                                   setSelectedClient(updatedClient);
