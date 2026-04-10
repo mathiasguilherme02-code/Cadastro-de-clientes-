@@ -379,6 +379,18 @@ app.put("/api/clients/:id", async (req, res) => {
     await updateDoc(doc(db, "clients", id), updateData);
       
     broadcastUpdate('UPDATE_CLIENTS');
+    
+    if (req.query.action === 'Adicionar Empréstimo') {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('pt-BR');
+      const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      broadcastUpdate('NEW_LOAN_REQUEST', { 
+        id: client.id, 
+        nomeCompleto: client.nomeCompleto,
+        timestamp: `${dateStr} às ${timeStr}`
+      });
+    }
+    
     res.json({ success: true });
   } catch (error) {
     console.error("Error updating client:", error);

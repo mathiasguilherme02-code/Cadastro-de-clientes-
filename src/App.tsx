@@ -135,7 +135,7 @@ export default function App() {
     if (adminToken) headers['Authorization'] = `Bearer ${adminToken}`;
 
     try {
-      const res = await fetch(`/api/clients/${updatedClient.id}`, {
+      const res = await fetch(`/api/clients/${updatedClient.id}?action=${encodeURIComponent(actionName)}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(updatedClient)
@@ -148,7 +148,7 @@ export default function App() {
         }
         
         triggerUndo(actionName, async () => {
-          const revertRes = await fetch(`/api/clients/${previousClientState.id}`, {
+          const revertRes = await fetch(`/api/clients/${previousClientState.id}?action=revert`, {
             method: 'PUT',
             headers,
             body: JSON.stringify(previousClientState)
@@ -422,6 +422,31 @@ export default function App() {
               duration: 10000,
               action: {
                 label: 'Ver Cliente',
+                onClick: () => {
+                  setView('admin_dashboard');
+                  setAdminTab('clientes');
+                  const foundClient = clientsRef.current.find(c => c.id === data.payload.id);
+                  if (foundClient) {
+                    setSelectedClient(foundClient);
+                  } else {
+                    fetch('/api/clients', { headers: { 'Authorization': `Bearer ${adminToken}` } })
+                      .then(res => res.json())
+                      .then(clientsData => {
+                        const client = clientsData.find((c: any) => c.id === data.payload.id);
+                        if (client) setSelectedClient(client);
+                      });
+                  }
+                }
+              }
+            });
+          }
+        } else if (data.type === 'NEW_LOAN_REQUEST') {
+          if (adminToken) {
+            toast.info(`Nova solicitação de empréstimo!`, {
+              description: `Cliente: ${data.payload?.nomeCompleto || 'Desconhecido'}\nData e Hora: ${data.payload?.timestamp || ''}`,
+              duration: 10000,
+              action: {
+                label: 'Ver Solicitação',
                 onClick: () => {
                   setView('admin_dashboard');
                   setAdminTab('clientes');
