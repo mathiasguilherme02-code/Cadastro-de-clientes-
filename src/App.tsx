@@ -83,6 +83,13 @@ const documentCategories = [
   { id: 'reserva2', label: 'Anexo Reserva 2', required: false },
 ];
 
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+    audio.play().catch(e => console.log('Audio play failed:', e));
+  } catch(e) {}
+};
+
 export default function App() {
   const [view, setView] = useState<'welcome' | 'simulation' | 'form' | 'admin_login' | 'admin' | 'client_login' | 'client_dashboard'>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -442,8 +449,10 @@ export default function App() {
           }
         } else if (data.type === 'NEW_LOAN_REQUEST') {
           if (adminToken) {
+            const now = new Date();
+            const timeStr = now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
             toast.info(`Nova solicitação de empréstimo!`, {
-              description: `Cliente: ${data.payload?.nomeCompleto || 'Desconhecido'}\nData e Hora: ${data.payload?.timestamp || ''}`,
+              description: `Cliente: ${data.payload?.nomeCompleto || 'Desconhecido'} - Data e Hora: ${timeStr}`,
               duration: 10000,
               action: {
                 label: 'Ver Solicitação',
@@ -466,6 +475,12 @@ export default function App() {
             });
           }
         } else if (data.type === 'CHAT_UPDATE' || data.type === 'CHAT_READ') {
+          if (data.type === 'CHAT_UPDATE' && data.payload?.newMessage) {
+            const isFromAdmin = data.payload.sender === 'admin';
+            if ((adminToken && !isFromAdmin) || (!adminToken && isFromAdmin)) {
+              playNotificationSound();
+            }
+          }
           window.dispatchEvent(new CustomEvent('app:chat_update', { detail: { ...data.payload, type: data.type } }));
         }
       } catch (e) {
@@ -1339,10 +1354,11 @@ export default function App() {
       if (adminToken) {
         setView('admin');
         setSelectedClient(null);
+        alert('Novo empréstimo adicionado com sucesso!');
       } else {
         setView('client_dashboard');
+        alert('Sua solicitação de empréstimo foi enviada com sucesso! Se quiser acrescentar algo, por favor, use o nosso chat.');
       }
-      alert('Novo empréstimo adicionado com sucesso!');
     } catch (error) {
       console.error("Erro ao adicionar empréstimo:", error);
       alert("Ocorreu um erro de conexão ao salvar o empréstimo.");

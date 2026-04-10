@@ -473,7 +473,7 @@ app.post("/api/chat/:clientId", async (req, res) => {
 
     await setDoc(chatDocRef, updateData, { merge: true });
 
-    broadcastUpdate('CHAT_UPDATE', { clientId });
+    broadcastUpdate('CHAT_UPDATE', { clientId, newMessage: true, sender });
     res.json({ id: docRef.id, ...message });
   } catch (error) {
     console.error("Error sending message:", error);
