@@ -2643,12 +2643,13 @@ export default function App() {
     const unifiedTransactions = [
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
-          .flatMap((s: any, sIdx: number) => 
+          .map((s: any, originalIndex: number) => ({ s, originalIndex }))
+          .filter(({ s }: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+          .flatMap(({ s, originalIndex }: any) => 
             (s.parcelas || []).filter((p: any) => p.paga).map((p: any) => {
               const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
               return {
-                id: `p-${c.id}-${sIdx}-${p.numero}`,
+                id: `p-${c.id}-${originalIndex}-${p.numero}`,
                 data: p.dataPagamento || p.dataVencimento,
                 tipo: 'entrada',
                 descricao: `Pagamento: ${c.nomeCompleto}`,
@@ -2661,11 +2662,12 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado')
-          .flatMap((s: any, sIdx: number) => 
+          .map((s: any, originalIndex: number) => ({ s, originalIndex }))
+          .filter(({ s }: any) => s.status !== 'pendente' && s.status !== 'reprovado')
+          .flatMap(({ s, originalIndex }: any) => 
             (s.parcelas || []).flatMap((p: any) => 
               (p.abatimentos || []).map((a: any, aIdx: number) => ({
-                id: `a-${c.id}-${sIdx}-${p.numero}-${aIdx}`,
+                id: `a-${c.id}-${originalIndex}-${p.numero}-${aIdx}`,
                 data: a.data,
                 tipo: 'entrada',
                 descricao: `Abatimento: ${c.nomeCompleto}`,
@@ -2678,12 +2680,13 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
-          .flatMap((s: any, sIdx: number) => 
+          .map((s: any, originalIndex: number) => ({ s, originalIndex }))
+          .filter(({ s }: any) => s.status !== 'pendente' && s.status !== 'reprovado' && s.status !== 'renegociado' && !s.arquivado)
+          .flatMap(({ s, originalIndex }: any) => 
             (s.parcelas || []).filter((p: any) => !p.paga).map((p: any) => {
               const abatimentosTotal = p.abatimentos ? p.abatimentos.reduce((acc: number, a: any) => acc + a.valor, 0) : 0;
               return {
-                id: `prev-${c.id}-${sIdx}-${p.numero}`,
+                id: `prev-${c.id}-${originalIndex}-${p.numero}`,
                 data: p.dataVencimento,
                 tipo: 'entrada_prevista',
                 descricao: `Previsão: ${c.nomeCompleto}`,
@@ -2696,9 +2699,10 @@ export default function App() {
       ),
       ...clients.flatMap(c => 
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
-          .filter((s: any) => s.status !== 'pendente' && s.status !== 'reprovado' && !s.isRenegociacao)
-          .map((s: any, sIdx: number) => ({
-            id: `s-${c.id}-${sIdx}`,
+          .map((s: any, originalIndex: number) => ({ s, originalIndex }))
+          .filter(({ s }: any) => s.status !== 'pendente' && s.status !== 'reprovado' && !s.isRenegociacao)
+          .map(({ s, originalIndex }: any) => ({
+            id: `s-${c.id}-${originalIndex}`,
             data: s.dataCriacao || c.dataCadastro || getLocalISODate(),
             tipo: 'saida',
             descricao: `Empréstimo: ${c.nomeCompleto}`,
