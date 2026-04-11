@@ -2638,7 +2638,7 @@ export default function App() {
       return acc;
     }, {} as Record<string, any[]>);
 
-    const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
+    const adminTransactions = clients.find(c => c.id === 'admin-transactions')?.retiradas || clients.find(c => c.id === 'admin-transactions')?.dados?.retiradas || [];
 
     const unifiedTransactions = [
       ...clients.flatMap(c => 
@@ -2846,13 +2846,14 @@ export default function App() {
       
       try {
         if (adminClient) {
+          const currentRetiradas = adminClient.retiradas || adminClient.dados?.retiradas || [];
           const updatedClient = {
             ...adminClient,
-            dados: {
-              ...adminClient.dados,
-              retiradas: [...(adminClient.dados?.retiradas || []), transaction]
-            }
+            retiradas: [...currentRetiradas, transaction]
           };
+          if (updatedClient.dados) {
+            updatedClient.dados.retiradas = updatedClient.retiradas;
+          }
           await fetch(`/api/clients/${adminClient.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${adminToken}` },
@@ -2934,10 +2935,14 @@ export default function App() {
         let updatedClient;
 
         if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
-          const updatedRetiradas = (client.dados?.retiradas || []).map((t: any) => 
+          const currentRetiradas = client.retiradas || client.dados?.retiradas || [];
+          const updatedRetiradas = currentRetiradas.map((t: any) => 
             t.id === id ? { ...t, valor: newVal, descricao: newDesc, data: newDate, tipo: newTipo } : t
           );
-          updatedClient = { ...client, dados: { ...client.dados, retiradas: updatedRetiradas } };
+          updatedClient = { ...client, retiradas: updatedRetiradas };
+          if (updatedClient.dados) {
+            updatedClient.dados.retiradas = updatedRetiradas;
+          }
         } else if (tipo === 'entrada') {
           const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
           const updatedSimulacoes = [...clientSimulacoes];
@@ -3026,8 +3031,12 @@ export default function App() {
           let updatedClient;
 
           if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
-            const updatedRetiradas = (client.dados?.retiradas || []).filter((t: any) => t.id !== id);
-            updatedClient = { ...client, dados: { ...client.dados, retiradas: updatedRetiradas } };
+            const currentRetiradas = client.retiradas || client.dados?.retiradas || [];
+            const updatedRetiradas = currentRetiradas.filter((t: any) => t.id !== id);
+            updatedClient = { ...client, retiradas: updatedRetiradas };
+            if (updatedClient.dados) {
+              updatedClient.dados.retiradas = updatedRetiradas;
+            }
           } else if (tipo === 'entrada') {
             const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
             const updatedSimulacoes = [...clientSimulacoes];
