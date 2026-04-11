@@ -923,13 +923,17 @@ export default function App() {
     let formattedValue = value;
     
     if (name === 'dataNascimento') {
-      const digits = value.replace(/\D/g, '');
-      if (digits.length <= 2) {
-        formattedValue = digits;
-      } else if (digits.length <= 4) {
-        formattedValue = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+      if (value.length < formData.dataNascimento.length) {
+        formattedValue = value;
       } else {
-        formattedValue = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+        const digits = value.replace(/\D/g, '');
+        if (digits.length <= 2) {
+          formattedValue = digits;
+        } else if (digits.length <= 4) {
+          formattedValue = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        } else {
+          formattedValue = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+        }
       }
     }
     
@@ -2724,7 +2728,7 @@ export default function App() {
     const transactionsWithBalance = sortedAllTransactions.map(t => {
       if (['entrada', 'aporte'].includes(t.tipo)) {
         runningBalance += t.valor;
-      } else if (['saida', 'retirada'].includes(t.tipo)) {
+      } else if (['saida', 'retirada', 'despesa_fixa'].includes(t.tipo)) {
         runningBalance -= t.valor;
       }
       return { ...t, saldoApos: runningBalance };
@@ -2925,7 +2929,7 @@ export default function App() {
         
         let updatedClient;
 
-        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
           const updatedRetiradas = (client.dados?.retiradas || []).map((t: any) => 
             t.id === id ? { ...t, valor: newVal, descricao: newDesc, data: newDate, tipo: newTipo } : t
           );
@@ -2991,7 +2995,7 @@ export default function App() {
           const parts = id.split('-');
           const typePrefix = parts[0];
           
-          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
             cId = 'admin-transactions';
           } else if (tipo === 'entrada') {
             if (typePrefix === 'a') {
@@ -3017,7 +3021,7 @@ export default function App() {
 
           let updatedClient;
 
-          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+          if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
             const updatedRetiradas = (client.dados?.retiradas || []).filter((t: any) => t.id !== id);
             updatedClient = { ...client, dados: { ...client.dados, retiradas: updatedRetiradas } };
           } else if (tipo === 'entrada') {
@@ -4945,6 +4949,7 @@ export default function App() {
                       >
                         <option value="retirada">Despesa Efetivada</option>
                         <option value="despesa_prevista">Despesa Prevista</option>
+                        <option value="despesa_fixa">Despesa Fixa</option>
                         <option value="aporte">Aporte (Entrada)</option>
                       </select>
                     </div>
@@ -5039,12 +5044,14 @@ export default function App() {
                                       t.tipo === 'entrada' ? 'bg-green-100 text-green-700' : 
                                       t.tipo === 'entrada_prevista' ? 'bg-yellow-100 text-yellow-700' : 
                                       t.tipo === 'saida' ? 'bg-red-100 text-red-700' : 
+                                      t.tipo === 'despesa_fixa' ? 'bg-purple-100 text-purple-700' :
                                       'bg-orange-100 text-orange-700'
                                     }`}>
                                       {t.tipo === 'aporte' ? 'Aporte' : 
                                        t.tipo === 'entrada' ? 'Entrada' : 
                                        t.tipo === 'entrada_prevista' ? 'Previsto' : 
                                        t.tipo === 'saida' ? 'Saída' : 
+                                       t.tipo === 'despesa_fixa' ? 'Despesa Fixa' :
                                        'Retirada'}
                                     </span>
                                   </td>
@@ -5267,7 +5274,7 @@ export default function App() {
               </h3>
               
               <form onSubmit={handleSaveFluxoEdit} className="space-y-4">
-                {['aporte', 'retirada', 'despesa_prevista'].includes(editingTransaction.tipo) && (
+                {['aporte', 'retirada', 'despesa_prevista', 'despesa_fixa'].includes(editingTransaction.tipo) && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Tipo</label>
                     <select 
@@ -5277,6 +5284,7 @@ export default function App() {
                     >
                       <option value="retirada">Despesa Efetivada</option>
                       <option value="despesa_prevista">Despesa Prevista</option>
+                      <option value="despesa_fixa">Despesa Fixa</option>
                       <option value="aporte">Aporte (Entrada)</option>
                     </select>
                   </div>
@@ -5324,6 +5332,17 @@ export default function App() {
                 <div className="pt-4 flex gap-3">
                   <button 
                     type="button"
+                    onClick={() => {
+                      setEditingTransaction(null);
+                      handleDeleteFluxoItem(editingTransaction);
+                    }}
+                    className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={20} />
+                    Excluir
+                  </button>
+                  <button 
+                    type="button"
                     onClick={() => setEditingTransaction(null)}
                     className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
                   >
@@ -5334,7 +5353,7 @@ export default function App() {
                     className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     <Save size={20} />
-                    Salvar Alterações
+                    Salvar
                   </button>
                 </div>
               </form>
@@ -6056,6 +6075,19 @@ export default function App() {
                           <span className="text-sm text-emerald-700 font-medium truncate w-full px-2" title={categorizedFiles[category.id].name}>
                             {categorizedFiles[category.id].name}
                           </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const newFiles = { ...categorizedFiles };
+                              delete newFiles[category.id];
+                              setCategorizedFiles(newFiles);
+                            }}
+                            className="mt-2 text-xs text-red-500 hover:text-red-700 font-medium z-20 relative"
+                          >
+                            Remover
+                          </button>
                         </>
                       ) : (
                         <>
