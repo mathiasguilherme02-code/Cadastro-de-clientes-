@@ -2908,9 +2908,9 @@ export default function App() {
         const parts = id.split('-');
         const typePrefix = parts[0];
         
-        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista') {
+        if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
           cId = 'admin-transactions';
-        } else if (tipo === 'entrada') {
+        } else if (tipo === 'entrada' || tipo === 'entrada_prevista') {
           if (typePrefix === 'a') {
             aIdx = parseInt(parts[parts.length - 1]);
             pNum = parseInt(parts[parts.length - 2]);
@@ -2943,11 +2943,11 @@ export default function App() {
           if (updatedClient.dados) {
             updatedClient.dados.retiradas = updatedRetiradas;
           }
-        } else if (tipo === 'entrada') {
+        } else if (tipo === 'entrada' || tipo === 'entrada_prevista') {
           const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
           const updatedSimulacoes = [...clientSimulacoes];
           const updatedParcelas = [...(updatedSimulacoes[sIdx!]?.parcelas || [])];
-          const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
+          const pIdx = updatedParcelas.findIndex(p => p.numero == pNum);
           
           if (pIdx !== -1) {
             if (typePrefix === 'a') {
@@ -2960,7 +2960,8 @@ export default function App() {
               updatedParcelas[pIdx] = { 
                 ...updatedParcelas[pIdx], 
                 valor: newVal,
-                dataPagamento: newDate.includes('T') ? newDate : `${newDate}T00:00:00`
+                dataPagamento: tipo === 'entrada' ? (newDate.includes('T') ? newDate : `${newDate}T00:00:00`) : updatedParcelas[pIdx].dataPagamento,
+                dataVencimento: tipo === 'entrada_prevista' ? newDate : updatedParcelas[pIdx].dataVencimento
               };
             }
             updatedSimulacoes[sIdx!] = { ...updatedSimulacoes[sIdx!], parcelas: updatedParcelas };
@@ -3006,7 +3007,7 @@ export default function App() {
           
           if (tipo === 'aporte' || tipo === 'retirada' || tipo === 'despesa_prevista' || tipo === 'despesa_fixa') {
             cId = 'admin-transactions';
-          } else if (tipo === 'entrada') {
+          } else if (tipo === 'entrada' || tipo === 'entrada_prevista') {
             if (typePrefix === 'a') {
               aIdx = parseInt(parts[parts.length - 1]);
               pNum = parseInt(parts[parts.length - 2]);
@@ -3037,11 +3038,11 @@ export default function App() {
             if (updatedClient.dados) {
               updatedClient.dados.retiradas = updatedRetiradas;
             }
-          } else if (tipo === 'entrada') {
+          } else if (tipo === 'entrada' || tipo === 'entrada_prevista') {
             const clientSimulacoes = client.simulacoes || (client.simulacao ? [client.simulacao] : []);
             const updatedSimulacoes = [...clientSimulacoes];
             const updatedParcelas = [...(updatedSimulacoes[sIdx!]?.parcelas || [])];
-            const pIdx = updatedParcelas.findIndex(p => p.numero === pNum);
+            const pIdx = updatedParcelas.findIndex(p => p.numero == pNum);
             
             if (pIdx !== -1) {
               if (typePrefix === 'a') {
@@ -3049,12 +3050,18 @@ export default function App() {
                 abatimentos.splice(aIdx!, 1);
                 updatedParcelas[pIdx] = { ...updatedParcelas[pIdx], abatimentos };
               } else {
-                updatedParcelas[pIdx] = { 
-                  ...updatedParcelas[pIdx], 
-                  paga: false,
-                  status: 'pendente',
-                  dataPagamento: null
-                };
+                if (tipo === 'entrada_prevista') {
+                  // Se for entrada_prevista, excluir a parcela inteira? Ou apenas resetar?
+                  // Vamos remover a parcela da simulação
+                  updatedParcelas.splice(pIdx, 1);
+                } else {
+                  updatedParcelas[pIdx] = { 
+                    ...updatedParcelas[pIdx], 
+                    paga: false,
+                    status: 'pendente',
+                    dataPagamento: null
+                  };
+                }
               }
               updatedSimulacoes[sIdx!] = { ...updatedSimulacoes[sIdx!], parcelas: updatedParcelas };
               updatedClient = { ...client, simulacoes: updatedSimulacoes };
@@ -3208,7 +3215,7 @@ export default function App() {
           dataVencimento = parseLocalDate(editSimData.dataVencimentoUnica);
         }
 
-        const existingParcela = existingParcelas.find((p: any) => p.numero === i);
+        const existingParcela = existingParcelas.find((p: any) => p.numero == i);
         
         let finalDataVencimento = getLocalISODate(dataVencimento);
         if (existingParcela && !dateOrPrazoChanged) {
