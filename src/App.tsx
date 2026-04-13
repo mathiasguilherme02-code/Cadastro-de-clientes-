@@ -2990,8 +2990,9 @@ export default function App() {
         
         setEditingTransaction(null);
         toast.success('Lançamento corrigido com sucesso!');
-      } catch (error) {
-        toast.error('Erro ao salvar correção.');
+      } catch (error: any) {
+        console.error('Error saving edit:', error);
+        toast.error(`Erro ao salvar correção: ${error.message}`);
       }
     };
 
@@ -3079,10 +3080,12 @@ export default function App() {
             await saveClientUpdate(updatedClient);
           }
           setConfirmModal(null);
+          setEditingTransaction(null);
           toast.success('Lançamento excluído com sucesso!');
-        } catch (error) {
+        } catch (error: any) {
           setConfirmModal(null);
-          toast.error('Erro ao excluir lançamento.');
+          console.error('Error deleting item:', error);
+          toast.error(`Erro ao excluir lançamento: ${error.message}`);
         }
       };
 
