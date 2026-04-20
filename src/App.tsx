@@ -838,6 +838,32 @@ export default function App() {
     return worstStatus;
   };
 
+  const getClientMaxDiasAtraso = (client: any) => {
+    const clientSims = client.simulacoes?.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado) || [];
+    let maxDias = 0;
+    
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+
+    for (const sim of clientSims) {
+      if (!sim.parcelas) continue;
+      for (const p of sim.parcelas) {
+        if (!p.paga) {
+          const vencimento = parseLocalDate(p.dataVencimento);
+          vencimento.setHours(0,0,0,0);
+          
+          const diffTime = hoje.getTime() - vencimento.getTime();
+          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          if (diasAtraso > maxDias) {
+            maxDias = diasAtraso;
+          }
+        }
+      }
+    }
+    return maxDias;
+  };
+
   const getStatusDisplay = (status: string) => {
     switch(status) {
       case 'inadimplente_antigo': return { color: 'bg-rose-900', text: 'text-white', label: 'Inadimplente Antigo' };
@@ -4595,10 +4621,21 @@ export default function App() {
                           </td>
                           <td className="py-4 px-6 font-medium text-slate-800">
                             <div className="flex items-center gap-2">
-                              {client.nomeCompleto}
+                              <span>{client.nomeCompleto}</span>
                               {client.simulacoes?.some((s: any) => s.status === 'pendente') && (
                                 <span className="bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap">Análise Pendente</span>
                               )}
+                              {(() => {
+                                const diasAtraso = getClientMaxDiasAtraso(client);
+                                if (diasAtraso > 0) {
+                                  return (
+                                    <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold whitespace-nowrap">
+                                      Atraso {diasAtraso.toString().padStart(2, '0')} {diasAtraso === 1 ? 'dia' : 'dias'}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                           </td>
                           <td className="py-4 px-6 text-slate-600">{client.cpf}</td>
