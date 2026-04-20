@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Toaster, toast } from 'sonner';
-import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check, MessageCircle, Send, MessageSquare } from 'lucide-react';
+import { User, MapPin, FileText, Users, Camera, UploadCloud, CheckCircle2, LayoutDashboard, ArrowLeft, ArrowRight, Eye, ImageIcon, Download, Maximize, Minimize, Phone, Info, X, UserPlus, Calculator, Edit2, Save, Trash2, Calendar, TrendingUp, Plus, AlertCircle, LogOut, ArrowUpRight, ArrowDownRight, AlertTriangle, Wallet, PiggyBank, CreditCard, Activity, Clock, Search, Landmark, RefreshCw, Check, CheckCheck, MessageCircle, Send, MessageSquare } from 'lucide-react';
 
 const initialFormData = {
   nomeCompleto: '',
@@ -531,7 +531,7 @@ export default function App() {
       text,
       sender,
       timestamp: new Date().toISOString(),
-      read: true
+      read: false
     };
     
     setChatMessages(prev => [...prev, newMessage]);
@@ -2296,9 +2296,16 @@ export default function App() {
                       <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'client' ? 'bg-yellow-500 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
                         {msg.text}
                       </div>
-                      <span className="text-[10px] text-slate-400 mt-1 px-1">
-                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <div className={`flex items-center gap-1 mt-1 px-1 ${msg.sender === 'client' ? 'flex-row-reverse' : ''}`}>
+                        <span className="text-[10px] text-slate-400">
+                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        {msg.sender === 'client' && (
+                          <span className={`${msg.read ? 'text-blue-500' : 'text-slate-300'}`}>
+                            <CheckCheck size={14} />
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -5264,13 +5271,18 @@ export default function App() {
                             <div className={`px-4 py-2 rounded-2xl ${msg.sender === 'admin' ? 'bg-yellow-500 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none'}`}>
                               {msg.text}
                             </div>
-                            <div className={`flex items-center gap-2 mt-1 px-1 ${msg.sender === 'admin' ? 'flex-row-reverse' : ''}`}>
+                            <div className={`flex items-center gap-1 mt-1 px-1 ${msg.sender === 'admin' ? 'flex-row-reverse' : ''}`}>
                               <span className="text-[10px] text-slate-400">
                                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </span>
+                              {msg.sender === 'admin' && (
+                                <span className={`${msg.read ? 'text-blue-500' : 'text-slate-300'}`}>
+                                  <CheckCheck size={14} />
+                                </span>
+                              )}
                               <button
                                 onClick={() => deleteMessage(selectedClient.id, msg.id)}
-                                className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
                                 title="Apagar mensagem"
                               >
                                 <Trash2 size={12} />
