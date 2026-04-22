@@ -74,11 +74,11 @@ const parseLocalDate = (dateString: string) => {
 };
 
 const documentCategories = [
-  { id: 'docFrente', label: 'CNH e/ou RG (Frente)', required: true },
-  { id: 'docVerso', label: 'CNH e/ou RG (Verso)', required: true },
-  { id: 'comprovante', label: 'Comprovante de Residência', required: true },
-  { id: 'selfie', label: 'Selfie com Documento', required: true },
-  { id: 'penhora', label: 'Penhora', required: true },
+  { id: 'docFrente', label: 'CNH e/ou RG (Frente)', required: false },
+  { id: 'docVerso', label: 'CNH e/ou RG (Verso)', required: false },
+  { id: 'comprovante', label: 'Comprovante de Residência', required: false },
+  { id: 'selfie', label: 'Selfie com Documento', required: false },
+  { id: 'penhora', label: 'Penhora', required: false },
   { id: 'reserva1', label: 'Anexo Reserva 1', required: false },
   { id: 'reserva2', label: 'Anexo Reserva 2', required: false },
 ];
