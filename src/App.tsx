@@ -6134,17 +6134,11 @@ export default function App() {
                   </div>
                   
                   <div className="w-full relative mt-2">
-                    <input 
-                      type="file" 
-                      onChange={(e) => handleCategorizedFileChange(category.id, e)} 
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
-                      accept="image/*,.pdf"
-                    />
-                    <div className={`w-full py-6 rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors ${categorizedFiles[category.id] ? 'border-emerald-400 bg-emerald-50' : 'border-slate-300 bg-white group-hover:border-yellow-400'}`}>
+                    <div className={`w-full overflow-hidden rounded-lg border-2 border-dashed flex flex-col items-center justify-center transition-colors ${categorizedFiles[category.id] ? 'border-emerald-400 bg-emerald-50 py-6' : 'border-slate-300 bg-white hover:border-yellow-400'}`}>
                       {categorizedFiles[category.id] ? (
                         <>
                           <CheckCircle2 className="text-emerald-500 mb-2" size={24} />
-                          <span className="text-sm text-emerald-700 font-medium truncate w-full px-2" title={categorizedFiles[category.id].name}>
+                          <span className="text-sm text-emerald-700 font-medium truncate w-full px-2 text-center" title={categorizedFiles[category.id].name}>
                             {categorizedFiles[category.id].name}
                           </span>
                           <button
@@ -6156,16 +6150,35 @@ export default function App() {
                               delete newFiles[category.id];
                               setCategorizedFiles(newFiles);
                             }}
-                            className="mt-2 text-xs text-red-500 hover:text-red-700 font-medium z-20 relative"
+                            className="mt-2 text-xs text-red-500 hover:text-red-700 font-medium z-20 relative px-3 py-1 bg-red-50 rounded"
                           >
                             Remover
                           </button>
                         </>
                       ) : (
-                        <>
-                          <UploadCloud className="text-slate-400 mb-2" size={24} />
-                          <span className="text-sm text-slate-500">Clique para anexar</span>
-                        </>
+                        <div className="flex w-full divide-x divide-slate-200">
+                          <label className="flex-1 py-6 px-1 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors">
+                            <UploadCloud className="text-slate-400 mb-2" size={24} />
+                            <span className="text-xs text-slate-500 text-center font-medium">Galeria / Arquivo</span>
+                            <input 
+                              type="file" 
+                              onChange={(e) => handleCategorizedFileChange(category.id, e)} 
+                              className="hidden" 
+                              accept="image/*,.pdf"
+                            />
+                          </label>
+                          <label className="flex-1 py-6 px-1 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors">
+                            <Camera className="text-slate-400 mb-2" size={24} />
+                            <span className="text-xs text-slate-500 text-center font-medium">Tirar Foto</span>
+                            <input 
+                              type="file" 
+                              onChange={(e) => handleCategorizedFileChange(category.id, e)} 
+                              className="hidden" 
+                              accept="image/*"
+                              capture={category.id === 'selfie' ? 'user' : 'environment'}
+                            />
+                          </label>
+                        </div>
                       )}
                     </div>
                   </div>
