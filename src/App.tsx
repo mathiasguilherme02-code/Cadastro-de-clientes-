@@ -1223,7 +1223,11 @@ export default function App() {
       setClients(prev => prev.map(c => c.id === selectedClient.id ? clientToSave : c));
       setSelectedClient(clientToSave);
       setIsEditingClientData(false);
-      setView('admin');
+      if (adminToken) {
+        setView('admin');
+      } else {
+        setView('client_dashboard');
+      }
       alert('Dados do cliente atualizados com sucesso!');
     } else {
       setClients(prev => [clientToSave, ...prev]);
@@ -1954,15 +1958,33 @@ export default function App() {
               </div>
               <p className="text-slate-500">Acompanhe o histórico e situação dos seus empréstimos</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3">
               {clientSimulacoes.some((s: any) => s.arquivado) && (
                 <button
                   onClick={() => setShowArchivedLoans(!showArchivedLoans)}
-                  className="flex items-center gap-2 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm font-medium"
+                  className="flex items-center justify-center gap-2 bg-slate-200 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-300 transition-colors shadow-sm font-medium"
                 >
                   {showArchivedLoans ? 'Ocultar Arquivados' : 'Ver Arquivados'}
                 </button>
               )}
+              <button 
+                onClick={() => {
+                  setFormData(selectedClient);
+                  const newFiles: { [key: string]: any } = {};
+                  if (selectedClient.arquivos) {
+                    selectedClient.arquivos.forEach((file: any) => {
+                      newFiles[file.categoria || 'outro'] = file;
+                    });
+                  }
+                  setCategorizedFiles(newFiles);
+                  setIsEditingClientData(true);
+                  setView('form');
+                }}
+                className="flex items-center justify-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors shadow-sm font-semibold"
+              >
+                <Edit2 size={18} />
+                Atualizar Cadastro
+              </button>
               <button 
                 onClick={() => {
                   const activeLoans = clientSimulacoes.filter((s: any) => ((s.status === 'aprovado' && s.clientAccepted !== 'nao') || !s.status) && !s.arquivado);
@@ -1990,14 +2012,16 @@ export default function App() {
                   });
                   setView('simulation');
                 }}
-                className="flex items-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm font-semibold"
+                className="flex items-center justify-center gap-2 bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg hover:bg-yellow-600 transition-colors shadow-sm font-semibold"
               >
+                <Plus size={18} />
                 Nova Simulação
               </button>
               <button 
-                onClick={() => { setView('simulation'); setSelectedClient(null); setClientCpf(''); }}
-                className="flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
+                onClick={() => { setView('welcome'); setSelectedClient(null); setClientCpf(''); }}
+                className="flex items-center justify-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm"
               >
+                <LogOut size={18} />
                 Sair da Conta
               </button>
             </div>
@@ -6193,7 +6217,11 @@ export default function App() {
                 type="button"
                 onClick={() => {
                   setIsEditingClientData(false);
-                  setView('admin');
+                  if (adminToken) {
+                    setView('admin');
+                  } else {
+                    setView('client_dashboard');
+                  }
                 }}
                 className="w-1/3 font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 text-lg bg-slate-200 hover:bg-slate-300 text-slate-700"
               >
