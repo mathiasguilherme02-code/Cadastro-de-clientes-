@@ -1970,13 +1970,7 @@ export default function App() {
               <button 
                 onClick={() => {
                   setFormData(selectedClient);
-                  const newFiles: { [key: string]: any } = {};
-                  if (selectedClient.arquivos) {
-                    selectedClient.arquivos.forEach((file: any) => {
-                      newFiles[file.categoria || 'outro'] = file;
-                    });
-                  }
-                  setCategorizedFiles(newFiles);
+                  setCategorizedFiles({});
                   setIsEditingClientData(true);
                   setView('form');
                 }}
