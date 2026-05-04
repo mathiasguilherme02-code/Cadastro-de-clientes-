@@ -2241,12 +2241,14 @@ export default function App() {
             </p>
             <div className="flex gap-4">
               <button
+                type="button"
                 onClick={() => setShowSimulationConfirmModal(false)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-xl transition-colors"
               >
                 Corrigir
               </button>
               <button
+                type="button"
                 onClick={() => {
                   setShowSimulationConfirmModal(false);
                   if (selectedClient) {
@@ -2292,12 +2294,14 @@ export default function App() {
             </div>
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => setConfirmModal(null)}
                 className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-4 rounded-xl transition-colors"
               >
                 {confirmModal.cancelText || "Cancelar"}
               </button>
               <button
+                type="button"
                 onClick={() => {
                   confirmModal.onConfirm();
                 }}
@@ -3141,7 +3145,9 @@ export default function App() {
   ) => {
     setConfirmModal({
       title: "Remover Abatimento",
-      message: "Tem certeza que deseja remover este abatimento?",
+      message: "Deseja fazer isso mesmo?",
+      confirmText: "Sim",
+      cancelText: "Não",
       type: "danger",
       onConfirm: async () => {
         if (!selectedClient) return;
@@ -4104,10 +4110,9 @@ export default function App() {
         setConfirmModal({
           isOpen: true,
           title: "Excluir Lançamento de Saída",
-          message:
-            "Excluir este lançamento de saída irá remover o empréstimo inteiro deste cliente. Tem certeza que deseja continuar?",
-          confirmText: "Sim, Excluir Empréstimo",
-          cancelText: "Cancelar",
+          message: "Deseja fazer isso mesmo?",
+          confirmText: "Sim",
+          cancelText: "Não",
           type: "danger",
           onConfirm: performDelete,
         });
@@ -4115,10 +4120,9 @@ export default function App() {
         setConfirmModal({
           isOpen: true,
           title: "Excluir Lançamento",
-          message:
-            "Tem certeza que deseja excluir este lançamento do fluxo de caixa?",
-          confirmText: "Sim, Excluir",
-          cancelText: "Cancelar",
+          message: "Deseja fazer isso mesmo?",
+          confirmText: "Sim",
+          cancelText: "Não",
           type: "danger",
           onConfirm: performDelete,
         });
@@ -4333,10 +4337,9 @@ export default function App() {
       setConfirmModal({
         isOpen: true,
         title: "Excluir Empréstimo",
-        message:
-          "Tem certeza que deseja excluir este empréstimo? Esta ação não pode ser desfeita.",
-        confirmText: "Sim, Excluir",
-        cancelText: "Cancelar",
+        message: "Deseja fazer isso mesmo?",
+        confirmText: "Sim",
+        cancelText: "Não",
         type: "danger",
         onConfirm: async () => {
           try {
@@ -4781,21 +4784,14 @@ export default function App() {
                     Editar Dados
                   </button>
                   <button
+                    type="button"
                     onClick={() =>
                       setConfirmModal({
                         isOpen: true,
                         title: "Excluir Cliente",
-                        message: (
-                          <>
-                            Tem certeza que deseja excluir o cliente{" "}
-                            <span className="font-semibold">
-                              {selectedClient.nomeCompleto}
-                            </span>
-                            ? Esta ação não poderá ser desfeita.
-                          </>
-                        ),
-                        confirmText: "Sim, Excluir",
-                        cancelText: "Cancelar",
+                        message: "Deseja fazer isso mesmo?",
+                        confirmText: "Sim",
+                        cancelText: "Não",
                         type: "danger",
                         onConfirm: () => handleDeleteClient(selectedClient.id),
                       })
@@ -5247,6 +5243,7 @@ export default function App() {
                                   </svg>
                                 </button>
                                 <button
+                                  type="button"
                                   onClick={() =>
                                     handleExcluirSimulacao(simIndex)
                                   }
@@ -6156,6 +6153,7 @@ export default function App() {
                                                         </span>
                                                         {!p.paga && (
                                                           <button
+                                                            type="button"
                                                             onClick={() =>
                                                               handleRemoveAbatimento(
                                                                 simIndex,
@@ -6645,22 +6643,14 @@ export default function App() {
                                     Ver Detalhes
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() =>
                                       setConfirmModal({
                                         isOpen: true,
                                         title: "Excluir Cliente",
-                                        message: (
-                                          <>
-                                            Tem certeza que deseja excluir o
-                                            cliente{" "}
-                                            <span className="font-semibold">
-                                              {client.nomeCompleto}
-                                            </span>
-                                            ? Esta ação não poderá ser desfeita.
-                                          </>
-                                        ),
-                                        confirmText: "Sim, Excluir",
-                                        cancelText: "Cancelar",
+                                        message: "Deseja fazer isso mesmo?",
+                                        confirmText: "Sim",
+                                        cancelText: "Não",
                                         type: "danger",
                                         onConfirm: () =>
                                           handleDeleteClient(client.id),
@@ -7353,6 +7343,7 @@ export default function App() {
                                             <Edit2 size={16} />
                                           </button>
                                           <button
+                                            type="button"
                                             onClick={() =>
                                               handleDeleteFluxoItem(t)
                                             }
@@ -7485,6 +7476,7 @@ export default function App() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => deleteChat(selectedClient.id)}
                           className="text-slate-400 hover:text-red-500 transition-colors"
                           title="Apagar conversa"
@@ -7537,6 +7529,7 @@ export default function App() {
                                 </span>
                               )}
                               <button
+                                type="button"
                                 onClick={() =>
                                   deleteMessage(selectedClient.id, msg.id)
                                 }
@@ -8817,10 +8810,9 @@ export default function App() {
                             setConfirmModal({
                               isOpen: true,
                               title: "Remover Anexo",
-                              message:
-                                "Tem certeza que deseja remover este anexo?",
-                              confirmText: "Sim, Remover",
-                              cancelText: "Cancelar",
+                              message: "Deseja fazer isso mesmo?",
+                              confirmText: "Sim",
+                              cancelText: "Não",
                               type: "danger",
                               onConfirm: () => {
                                 const newArquivos = [...formData.arquivos];
