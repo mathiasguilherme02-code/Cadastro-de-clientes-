@@ -6923,6 +6923,20 @@ export default function App() {
                                     </td>
                                   </tr>
                                 ))}
+                                <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
+                                  <td colSpan={3} className="py-3 px-6 text-right text-slate-800">
+                                    Total a Receber no Dia:
+                                  </td>
+                                  <td className="py-3 px-6 text-slate-800">
+                                    {formatCurrency(
+                                      parcelas.reduce(
+                                        (acc, p) => acc + (p.valorRestante || 0),
+                                        0
+                                      )
+                                    )}
+                                  </td>
+                                  <td className="print:hidden"></td>
+                                </tr>
                               </tbody>
                             </table>
                           </div>
