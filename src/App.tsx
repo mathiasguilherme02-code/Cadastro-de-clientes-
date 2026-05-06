@@ -104,6 +104,10 @@ const getLocalISOYear = (date = new Date()) => {
   return String(date.getFullYear());
 };
 
+const getLocalMonthDigits = (date = new Date()) => {
+  return String(date.getMonth() + 1).padStart(2, "0");
+};
+
 const getLocalISODateTime = (date = new Date()) => {
   const d = getLocalISODate(date);
   const t = date.toTimeString().split(" ")[0];
@@ -162,10 +166,10 @@ export default function App() {
   >("clientes");
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
   const [cronogramaYear, setCronogramaYear] = useState(getLocalISOYear());
-  const [cronogramaMonth, setCronogramaMonth] = useState("all");
+  const [cronogramaMonth, setCronogramaMonth] = useState(getLocalMonthDigits());
   const [cronogramaStatusFilter, setCronogramaStatusFilter] = useState("all");
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
-  const [fluxoMonth, setFluxoMonth] = useState("all"); // 'all' or '01' to '12'
+  const [fluxoMonth, setFluxoMonth] = useState(getLocalMonthDigits()); // 'all' or '01' to '12'
   const [fluxoTypeFilter, setFluxoTypeFilter] = useState("all"); // 'all', 'entrada', 'saida', 'retirada', 'aporte', 'entrada_prevista'
   const [newRetirada, setNewRetirada] = useState({
     valor: "",
