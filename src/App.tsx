@@ -45,6 +45,7 @@ import {
   MessageCircle,
   Send,
   MessageSquare,
+  Printer,
 } from "lucide-react";
 
 const initialFormData = {
@@ -6697,7 +6698,14 @@ export default function App() {
                   <Calendar size={24} className="text-yellow-500" />
                   Cronograma de Clientes
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 print:hidden">
+                  <button
+                    onClick={() => window.print()}
+                    className="bg-yellow-100 text-yellow-700 p-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center justify-center"
+                    title="Salvar PDF/Imprimir"
+                  >
+                    <Printer size={20} />
+                  </button>
                   <select
                     value={cronogramaStatusFilter}
                     onChange={(e) => setCronogramaStatusFilter(e.target.value)}
@@ -6798,7 +6806,7 @@ export default function App() {
                                   <th className="py-3 px-6 font-semibold text-slate-700">
                                     Valor
                                   </th>
-                                  <th className="py-3 px-6 font-semibold text-slate-700 text-right">
+                                  <th className="py-3 px-6 font-semibold text-slate-700 text-right print:hidden">
                                     Ação
                                   </th>
                                 </tr>
@@ -6821,7 +6829,7 @@ export default function App() {
                                     <td className="py-3 px-6 text-slate-600">
                                       {formatCurrency(p.valorRestante)}
                                     </td>
-                                    <td className="py-3 px-6 text-right">
+                                    <td className="py-3 px-6 text-right print:hidden">
                                       <div className="flex items-center justify-end gap-2">
                                         <a
                                           href={`https://wa.me/55${p.clientPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
@@ -6935,13 +6943,20 @@ export default function App() {
 
           {!selectedClient && adminTab === "fluxo_caixa" && (
             <div className="space-y-6">
-              <div className="bg-white rounded-2xl shadow-xl p-6">
+              <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <TrendingUp size={24} className="text-yellow-500" />
                     Fluxo de Caixa
                   </h2>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 print:hidden">
+                    <button
+                      onClick={() => window.print()}
+                      className="bg-yellow-100 text-yellow-700 p-2 rounded-lg hover:bg-yellow-200 transition-colors flex items-center justify-center"
+                      title="Salvar PDF/Imprimir"
+                    >
+                      <Printer size={20} />
+                    </button>
                     <select
                       value={fluxoTypeFilter}
                       onChange={(e) => setFluxoTypeFilter(e.target.value)}
@@ -7102,7 +7117,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="border-t pt-6">
+                <div className="border-t pt-6 print:hidden">
                   <h3 className="text-lg font-bold text-slate-800 mb-4">
                     Registrar Movimentação (Admin)
                   </h3>
@@ -7265,7 +7280,7 @@ export default function App() {
                                   <th className="py-2 px-4 font-semibold text-slate-600 text-right">
                                     Saldo
                                   </th>
-                                  <th className="py-2 px-4 font-semibold text-slate-600 text-center">
+                                  <th className="py-2 px-4 font-semibold text-slate-600 text-center print:hidden">
                                     Ações
                                   </th>
                                 </tr>
@@ -7330,7 +7345,7 @@ export default function App() {
                                         ? "-"
                                         : formatCurrency(t.saldoApos)}
                                     </td>
-                                    <td className="py-3 px-4">
+                                    <td className="py-3 px-4 print:hidden">
                                       {t.tipo !== "entrada_prevista" && (
                                         <div className="flex justify-center gap-2">
                                           <button
