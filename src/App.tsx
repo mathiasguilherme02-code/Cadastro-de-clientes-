@@ -1649,10 +1649,22 @@ export default function App() {
         const clientSimulacoes =
           latestClient.simulacoes ||
           (latestClient.simulacao ? [latestClient.simulacao] : []);
+        
+        const pendingOrUnacceptedSimulations = clientSimulacoes.filter(
+          (s: any) =>
+            (s.status === "pendente" || (s.status === "aprovado" && (!s.clientAccepted || s.clientAccepted === "pendente"))) &&
+            !s.arquivado,
+        );
+
+        if (pendingOrUnacceptedSimulations.length >= 3) {
+          alert("Você pode ter no máximo 3 simulações aguardando análise ou aceite. Reveja as opções já aprovadas ou aguarde a análise do administrador.");
+          return;
+        }
+
         const activeLoans = clientSimulacoes.filter(
           (s: any) =>
-            ((s.status === "aprovado" && s.clientAccepted !== "nao") ||
-              !s.status) &&
+            ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+              (!s.status && s.clientAccepted !== "nao")) &&
             !s.arquivado,
         );
         const hasBlockingLoan = activeLoans.some((s: any) => {
@@ -1820,13 +1832,29 @@ export default function App() {
       if (!fetchRes.ok) throw new Error("Failed to fetch latest client data");
       const latestClient = await fetchRes.json();
 
-      const updatedSimulacoes = latestClient.simulacoes
+      let updatedSimulacoes = latestClient.simulacoes
         ? [...latestClient.simulacoes]
         : [latestClient.simulacao];
+      
       updatedSimulacoes[simIndex] = {
         ...updatedSimulacoes[simIndex],
         clientAccepted: accepted ? "sim" : "nao",
       };
+
+      if (accepted) {
+        updatedSimulacoes = updatedSimulacoes.map((s, idx) => {
+          if (idx !== simIndex && !s.arquivado && (!s.clientAccepted || s.clientAccepted === "pendente") && (s.status === "pendente" || s.status === "aprovado" || !s.status)) {
+            return {
+              ...s,
+              clientAccepted: "nao",
+              arquivado: true,
+              status: "reprovado",
+              observacoesAdmin: (s.observacoesAdmin ? s.observacoesAdmin + "\n" : "") + "Cancelada/arquivada automaticamente devido ao aceite de outra proposta pelo cliente.",
+            };
+          }
+          return s;
+        });
+      }
 
       const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
       console.log("Sending updated client:", updatedClient);
@@ -2471,11 +2499,21 @@ export default function App() {
               </button>
               <button
                 onClick={() => {
+                  const pendingOrUnacceptedSimulations = clientSimulacoes.filter(
+                    (s: any) =>
+                      (s.status === "pendente" || (s.status === "aprovado" && (!s.clientAccepted || s.clientAccepted === "pendente"))) &&
+                      !s.arquivado,
+                  );
+
+                  if (pendingOrUnacceptedSimulations.length >= 3) {
+                    alert("Você pode ter no máximo 3 simulações aguardando análise ou aceite. Reveja as opções já aprovadas ou aguarde a análise do administrador.");
+                    return;
+                  }
+
                   const activeLoans = clientSimulacoes.filter(
                     (s: any) =>
-                      ((s.status === "aprovado" &&
-                        s.clientAccepted !== "nao") ||
-                        !s.status) &&
+                      ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                        (!s.status && s.clientAccepted !== "nao")) &&
                       !s.arquivado,
                   );
                   const hasBlockingLoan = activeLoans.some((s: any) => {
