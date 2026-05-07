@@ -4376,6 +4376,7 @@ export default function App() {
 
     const handleExcluirSimulacao = async (simIndex: number) => {
       if (!selectedClient) return;
+      console.log(`handleExcluirSimulacao called for simIndex ${simIndex}`);
 
       setConfirmModal({
         isOpen: true,
@@ -4386,6 +4387,8 @@ export default function App() {
         type: "danger",
         onConfirm: async () => {
           try {
+            console.log(`Confirming deletion for simIndex ${simIndex}`);
+            toast.info("Iniciando exclusão...");
             const res = await fetch(`/api/clients/${selectedClient.id}`, {
               headers: { Authorization: `Bearer ${adminToken}` },
             });
@@ -4395,15 +4398,25 @@ export default function App() {
             const clientSimulacoes =
               latestClient.simulacoes ||
               (latestClient.simulacao ? [latestClient.simulacao] : []);
+            
+            console.log(`Total simulations before delete: ${clientSimulacoes.length}`);
+            
+            if (simIndex < 0 || simIndex >= clientSimulacoes.length) {
+                console.error("simIndex is out of bounds!", simIndex);
+                throw new Error("Índice de simulação inválido.");
+            }
+
             const updatedSimulacoes = [...clientSimulacoes];
-            updatedSimulacoes.splice(simIndex, 1);
+            const removed = updatedSimulacoes.splice(simIndex, 1);
+            console.log("Removed simulation:", removed);
 
             const updatedClient = {
               ...latestClient,
               simulacoes: updatedSimulacoes,
-              simulacao: null,
             };
+            delete updatedClient.simulacao; // use delete instead of null to prevent issues
 
+            console.log("Calling updateClientWithUndo...");
             const success = await updateClientWithUndo(
               updatedClient,
               "Excluir Empréstimo",
@@ -4419,10 +4432,10 @@ export default function App() {
             setSelectedClient(updatedClient);
             setConfirmModal(null);
             toast.success("Empréstimo excluído com sucesso!");
-          } catch (error) {
+          } catch (error: any) {
             console.error("Error deleting simulacao:", error);
             setConfirmModal(null);
-            toast.error("Erro ao excluir empréstimo. Tente novamente.");
+            toast.error(`Erro ao excluir empréstimo: ${error.message}`);
           }
         },
       });
