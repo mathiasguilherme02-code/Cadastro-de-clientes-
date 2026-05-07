@@ -5547,6 +5547,12 @@ export default function App() {
                                     const isVencendoHoje =
                                       !p.paga &&
                                       vencimento.getTime() === hoje.getTime();
+                                    
+                                    const amanha = new Date(hoje);
+                                    amanha.setDate(amanha.getDate() + 1);
+                                    const isVencendoAmanha =
+                                      !p.paga && 
+                                      vencimento.getTime() === amanha.getTime();
 
                                     let diasAtraso = 0;
                                     let valorAtualizado = p.valor;
@@ -6377,6 +6383,20 @@ export default function App() {
                                             </a>
                                           </div>
                                         )}
+
+                                        {isVencendoAmanha && (
+                                          <div className="mt-3 pt-3 border-t border-blue-200 print:hidden">
+                                            <a
+                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence amanhã, ${formatDate(p.dataVencimento)}.`)}`}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex justify-center items-center gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
+                                            >
+                                              <Phone size={16} />
+                                              Pré-notificar Vencimento Amanhã
+                                            </a>
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })}
@@ -6815,9 +6835,15 @@ export default function App() {
                       hoje.setHours(0, 0, 0, 0);
                       const vencimento = parseLocalDate(date);
                       vencimento.setHours(0, 0, 0, 0);
+                      
+                      const amanha = new Date(hoje);
+                      amanha.setDate(amanha.getDate() + 1);
+
                       const isVencida = vencimento < hoje;
                       const isVencendoHoje =
                         vencimento.getTime() === hoje.getTime();
+                      const isVencendoAmanha =
+                        vencimento.getTime() === amanha.getTime();
 
                       let dateLabel = formatDate(date);
                       let dateColor = "text-slate-700 bg-slate-100";
@@ -6829,6 +6855,9 @@ export default function App() {
                       } else if (isVencida) {
                         dateLabel += " (Vencida)";
                         dateColor = "text-red-800 bg-red-100 border-red-200";
+                      } else if (isVencendoAmanha) {
+                        dateLabel += " (Vence Amanhã)";
+                        dateColor = "text-blue-800 bg-blue-100 border-blue-200";
                       } else {
                         dateLabel += " (A Vencer)";
                         dateColor = "text-blue-800 bg-blue-100 border-blue-200";
@@ -6891,6 +6920,8 @@ export default function App() {
                                             (() => {
                                               if (isVencendoHoje) {
                                                 return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                              } else if (isVencendoAmanha) {
+                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence amanhã, ${formatDate(p.dataVencimento)}.`;
                                               } else if (isVencida) {
                                                 let dataBase = hoje;
                                                 if (
