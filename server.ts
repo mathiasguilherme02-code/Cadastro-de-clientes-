@@ -360,12 +360,27 @@ app.put("/api/clients/:id", async (req, res) => {
     } else if (client.cpf) {
       // If admin, check if the new CPF already exists for a different client
       const formattedCpf = client.cpf.replace(/[^\d]+/g, '');
-      const q = query(collection(db, "clients"), where("cpf", "==", formattedCpf));
-      const querySnapshot = await getDocs(q);
       
-      const existingClient = querySnapshot.docs.find(doc => doc.id !== id);
-      if (existingClient) {
-        return res.status(400).json({ error: "CPF já cadastrado para outro cliente" });
+      const docRef = doc(db, "clients", id);
+      const docSnap = await getDoc(docRef);
+      let dbCpf = "";
+      if (docSnap.exists()) {
+        dbCpf = docSnap.data().cpf;
+        if (!dbCpf) {
+           const dados = typeof docSnap.data().dados === 'string' ? JSON.parse(docSnap.data().dados) : docSnap.data().dados;
+           dbCpf = dados.cpf;
+        }
+        dbCpf = dbCpf ? dbCpf.replace(/[^\d]+/g, '') : "";
+      }
+      
+      if (formattedCpf !== dbCpf) {
+        const q = query(collection(db, "clients"), where("cpf", "==", formattedCpf));
+        const querySnapshot = await getDocs(q);
+        
+        const existingClient = querySnapshot.docs.find((d: any) => d.id !== id);
+        if (existingClient) {
+          return res.status(400).json({ error: "CPF já cadastrado para outro cliente" });
+        }
       }
     }
     
