@@ -165,8 +165,8 @@ export default function App() {
     "clientes" | "cronograma" | "fluxo_caixa" | "mensagens"
   >("clientes");
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
-  const [cronogramaYear, setCronogramaYear] = useState(getLocalISOYear());
-  const [cronogramaMonth, setCronogramaMonth] = useState(getLocalMonthDigits());
+  const [cronogramaYear, setCronogramaYear] = useState("all");
+  const [cronogramaMonth, setCronogramaMonth] = useState("all");
   const [cronogramaStatusFilter, setCronogramaStatusFilter] = useState("all");
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [fluxoMonth, setFluxoMonth] = useState(getLocalMonthDigits()); // 'all' or '01' to '12'
@@ -3463,7 +3463,10 @@ export default function App() {
     const filteredCronogramaParcelas = cronogramaParcelas.filter((p: any) => {
       const date = p.dataVencimento;
       if (!date) return false;
-      const [year, month] = date.split("-");
+      
+      const vencimento = parseLocalDate(date);
+      const year = String(vencimento.getFullYear());
+      const month = String(vencimento.getMonth() + 1).padStart(2, "0");
 
       if (cronogramaYear !== "all" && year !== cronogramaYear) return false;
       if (cronogramaMonth !== "all" && month !== cronogramaMonth) return false;
@@ -3471,7 +3474,6 @@ export default function App() {
       if (cronogramaStatusFilter !== "all") {
         const hoje = new Date();
         hoje.setHours(0, 0, 0, 0);
-        const vencimento = parseLocalDate(date);
         vencimento.setHours(0, 0, 0, 0);
 
         if (cronogramaStatusFilter === "vencidas" && vencimento >= hoje)
@@ -3481,7 +3483,7 @@ export default function App() {
           vencimento.getTime() !== hoje.getTime()
         )
           return false;
-        if (cronogramaStatusFilter === "a_vencer" && vencimento <= hoje)
+        if (cronogramaStatusFilter === "a_vencer" && vencimento < hoje)
           return false;
       }
 
