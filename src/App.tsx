@@ -165,8 +165,8 @@ export default function App() {
     "clientes" | "cronograma" | "fluxo_caixa" | "mensagens"
   >("clientes");
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
-  const [cronogramaYear, setCronogramaYear] = useState("all");
-  const [cronogramaMonth, setCronogramaMonth] = useState("all");
+  const [cronogramaYear, setCronogramaYear] = useState(getLocalISOYear());
+  const [cronogramaMonth, setCronogramaMonth] = useState(getLocalMonthDigits());
   const [cronogramaStatusFilter, setCronogramaStatusFilter] = useState("all");
   const [fluxoYear, setFluxoYear] = useState(getLocalISOYear()); // YYYY
   const [fluxoMonth, setFluxoMonth] = useState(getLocalMonthDigits()); // 'all' or '01' to '12'
@@ -4656,6 +4656,9 @@ export default function App() {
                 setAdminTab("cronograma");
                 setSelectedClient(null);
                 setSearchTerm("");
+                setCronogramaYear(getLocalISOYear());
+                setCronogramaMonth(getLocalMonthDigits());
+                setCronogramaStatusFilter("all");
               }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === "cronograma" ? "border-b-2 border-yellow-500 text-yellow-600" : "text-slate-500 hover:text-slate-700"}`}
             >
@@ -4666,6 +4669,9 @@ export default function App() {
                 setAdminTab("fluxo_caixa");
                 setSelectedClient(null);
                 setSearchTerm("");
+                setFluxoYear(getLocalISOYear());
+                setFluxoMonth(getLocalMonthDigits());
+                setFluxoTypeFilter("all");
               }}
               className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === "fluxo_caixa" ? "border-b-2 border-yellow-500 text-yellow-600" : "text-slate-500 hover:text-slate-700"}`}
             >
