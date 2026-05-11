@@ -344,6 +344,7 @@ export default function App() {
     taxaJuros: "40",
     taxaAtrasoDia: "8",
     tipoTaxa: "mensal",
+    dataInicial: getLocalISODate(),
     dataVencimentoUnica: "",
     parcelas: [] as any[],
     isRenegociacao: false,
@@ -1134,7 +1135,9 @@ export default function App() {
     const isMensal = true; // Fixado mensalmente
 
     let diasTotais = 30;
-    let dataAtual = new Date();
+    let dataAtual = simulacao.dataInicial 
+      ? parseLocalDate(simulacao.dataInicial) 
+      : new Date();
     dataAtual.setHours(0, 0, 0, 0);
 
     if (simulacao.prazo === "dia") diasTotais = qtd;
@@ -2252,6 +2255,12 @@ export default function App() {
                   {pendingSimulation.prazo}
                 </span>
               </div>
+              <div className="flex justify-between items-center border-b border-slate-200 pb-2">
+                <span className="text-slate-500">Data Inicial</span>
+                <span className="font-semibold text-slate-800">
+                  {formatDate(pendingSimulation.dataInicial)}
+                </span>
+              </div>
               {pendingSimulation.prazo !== "única" ? (
                 <div className="flex justify-between items-center border-b border-slate-200 pb-2">
                   <span className="text-slate-500">Quantidade de Parcelas</span>
@@ -2647,11 +2656,26 @@ export default function App() {
                           <h3 className="text-xl font-bold text-slate-800 mb-2">
                             Em Análise
                           </h3>
-                          <p className="text-slate-500 max-w-md mx-auto">
+                          <p className="text-slate-500 max-w-md mx-auto mb-6">
                             Sua solicitação está sendo analisado e revisado pela
                             nossa equipe, podendo ter alterações. Você poderá
                             estar verificando se houve atualização.
                           </p>
+                          <div className="bg-slate-50 p-4 rounded-lg max-w-md mx-auto text-left border border-slate-200">
+                            <h4 className="font-semibold text-slate-700 mb-2">Detalhes da Solicitação:</h4>
+                            <ul className="text-sm text-slate-600 space-y-2">
+                              <li><strong>Valor:</strong> {formatCurrency(sim.valorSolicitado)}</li>
+                              <li><strong>Prazo:</strong> <span className="capitalize">{sim.prazo}</span></li>
+                              <li>
+                                <strong>Data Inicial:</strong> {formatDate(sim.dataInicial)}
+                              </li>
+                              {sim.prazo === "única" ? (
+                                <li><strong>Data de Pagamento:</strong> {formatDate(sim.dataVencimentoUnica)}</li>
+                              ) : (
+                                <li><strong>Quantidade:</strong> {sim.quantidade}x</li>
+                              )}
+                            </ul>
+                          </div>
                         </div>
                       ) : sim.status === "reprovado" ? (
                         <div className="text-center py-8">
@@ -4201,9 +4225,9 @@ export default function App() {
         taxaJuros: sim.taxaJuros || adminSettings.taxaJuros,
         taxaAtrasoDia: sim.taxaAtrasoDia || adminSettings.taxaAtrasoDia,
         tipoTaxa: sim.tipoTaxa || adminSettings.tipoTaxa || "diaria",
-        dataInicial: sim.dataCriacao
+        dataInicial: sim.dataInicial || (sim.dataCriacao
           ? sim.dataCriacao.split("T")[0]
-          : getLocalISODate(),
+          : getLocalISODate()),
         dataVencimentoUnica:
           sim.prazo === "única" && sim.parcelas && sim.parcelas.length > 0
             ? sim.parcelas[0].dataVencimento.split("T")[0]
@@ -7981,7 +8005,7 @@ export default function App() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Valor Solicitado (R$)
@@ -8016,6 +8040,22 @@ export default function App() {
                       <option value="quinzenal">Quinzenal</option>
                       <option value="mensal">Mensal</option>
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Data Inicial
+                    </label>
+                    <input
+                      type="date"
+                      value={simulacao.dataInicial}
+                      onChange={(e) =>
+                        setSimulacao({
+                          ...simulacao,
+                          dataInicial: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none transition-all"
+                    />
                   </div>
                   {simulacao.prazo !== "única" ? (
                     <div>
