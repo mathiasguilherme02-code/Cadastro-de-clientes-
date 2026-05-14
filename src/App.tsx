@@ -1032,6 +1032,11 @@ export default function App() {
         (s: any) => s.status === "reprovado" && !s.arquivado,
       );
       if (hasReprovado) return "reprovado";
+
+      const hasCancelado = client.simulacoes?.some(
+        (s: any) => s.status === "cancelado_pelo_cliente",
+      );
+      if (hasCancelado && client.simulacoes?.length === 1) return "cancelado_pelo_cliente";
     }
 
     return worstStatus;
@@ -1107,6 +1112,8 @@ export default function App() {
         };
       case "reprovado":
         return { color: "bg-red-500", text: "text-white", label: "Reprovado" };
+      case "cancelado_pelo_cliente":
+        return { color: "bg-slate-400", text: "text-white", label: "Cancelado (Cliente)" };
       case "sem_pendencias":
         return {
           color: "bg-slate-200",
@@ -1897,6 +1904,58 @@ export default function App() {
     }
   };
 
+  const handleClientCancelSolicitacao = async (simIndex: number) => {
+    if (!selectedClient) return;
+
+    if (
+      !confirm(
+        "Tem certeza que deseja cancelar esta solicitação de empréstimo? Esta ação não pode ser desfeita.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const fetchRes = await fetch(`/api/clients/${selectedClient.id}`);
+      if (!fetchRes.ok) throw new Error("Failed to fetch latest client data");
+      const latestClient = await fetchRes.json();
+
+      let updatedSimulacoes = latestClient.simulacoes
+        ? [...latestClient.simulacoes]
+        : [latestClient.simulacao];
+
+      updatedSimulacoes[simIndex] = {
+        ...updatedSimulacoes[simIndex],
+        status: "cancelado_pelo_cliente",
+        arquivado: true,
+        clientAccepted: "nao",
+        anotacoes:
+          (updatedSimulacoes[simIndex].anotacoes || "") +
+          `\n[${getLocalISODateTime()}] Cancelado pelo próprio cliente durante a análise.`,
+      };
+
+      const updatedClient = { ...latestClient, simulacoes: updatedSimulacoes };
+
+      const res = await fetch(`/api/clients/${updatedClient.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedClient),
+      });
+
+      if (!res.ok) throw new Error("Failed to update client");
+
+      setSelectedClient(updatedClient);
+      setClients((prev) =>
+        prev.map((c) => (c.id === updatedClient.id ? updatedClient : c)),
+      );
+      setClientActionMessage("Solicitação cancelada com sucesso!");
+      setTimeout(() => setClientActionMessage(""), 3000);
+    } catch (err) {
+      console.error("Erro ao cancelar solicitação:", err);
+      setClientActionError("Erro ao cancelar solicitação. Tente novamente.");
+    }
+  };
+
   const renderModals = () => (
     <>
       {/* Modals */}
@@ -2616,6 +2675,11 @@ export default function App() {
                               Renegociado
                             </span>
                           )}
+                          {sim.status === "cancelado_pelo_cliente" && (
+                            <span className="text-xs bg-slate-400 text-white px-2 py-1 rounded-full uppercase tracking-wider">
+                              Cancelado
+                            </span>
+                          )}
                           {(sim.status === "aprovado" ||
                             (!sim.status && sim.status !== "renegociado")) && (
                             <>
@@ -2661,7 +2725,7 @@ export default function App() {
                             nossa equipe, podendo ter alterações. Você poderá
                             estar verificando se houve atualização.
                           </p>
-                          <div className="bg-slate-50 p-4 rounded-lg max-w-md mx-auto text-left border border-slate-200">
+                          <div className="bg-slate-50 p-4 rounded-lg max-w-md mx-auto text-left border border-slate-200 mb-8">
                             <h4 className="font-semibold text-slate-700 mb-2">Detalhes da Solicitação:</h4>
                             <ul className="text-sm text-slate-600 space-y-2">
                               <li><strong>Valor:</strong> {formatCurrency(sim.valorSolicitado)}</li>
@@ -2675,6 +2739,18 @@ export default function App() {
                                 <li><strong>Quantidade:</strong> {sim.quantidade}x</li>
                               )}
                             </ul>
+                          </div>
+
+                          <div className="border-t border-slate-100 pt-6 max-w-md mx-auto">
+                            <p className="text-sm text-slate-500 mb-3">
+                              A análise está demorando ou você mudou de ideia?
+                            </p>
+                            <button
+                              onClick={() => handleClientCancelSolicitacao(sim.originalIndex)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 font-medium py-2 px-6 rounded-lg transition-colors border border-red-200 hover:border-red-300"
+                            >
+                              Cancelar Solicitação
+                            </button>
                           </div>
                         </div>
                       ) : sim.status === "reprovado" ? (
@@ -2703,6 +2779,32 @@ export default function App() {
                             Infelizmente, sua solicitação de empréstimo não foi
                             aprovada neste momento. Entre em contato conosco
                             para mais informações.
+                          </p>
+                        </div>
+                      ) : sim.status === "cancelado_pelo_cliente" ? (
+                        <div className="text-center py-8">
+                          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-500 mb-4">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="32"
+                              height="32"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="12" cy="12" r="10"></circle>
+                              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                            </svg>
+                          </div>
+                          <h3 className="text-xl font-bold text-slate-800 mb-2">
+                            Empréstimo Cancelado
+                          </h3>
+                          <p className="text-slate-500 max-w-md mx-auto">
+                            Esta solicitação de empréstimo foi cancelada por você. 
+                            Você pode realizar uma nova simulação a qualquer momento.
                           </p>
                         </div>
                       ) : (
@@ -5197,6 +5299,12 @@ export default function App() {
                                     Reprovado
                                   </span>
                                 )}
+                                {sim.status === "cancelado_pelo_cliente" && (
+                                  <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                                    <X size={14} />
+                                    Cancelado (Cliente)
+                                  </span>
+                                )}
                                 {sim.arquivado && (
                                   <span className="bg-slate-200 text-slate-700 px-3 py-1 rounded-full text-sm font-medium ml-2">
                                     Arquivado
@@ -6603,6 +6711,7 @@ export default function App() {
                         Aguardando Aceite
                       </option>
                       <option value="reprovado">Reprovado</option>
+                      <option value="cancelado_pelo_cliente">Cancelado</option>
                       <option value="sem_pendencias">Sem Pendências</option>
                     </select>
                   </div>
