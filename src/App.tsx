@@ -3594,14 +3594,19 @@ export default function App() {
       const year = String(vencimento.getFullYear());
       const month = String(vencimento.getMonth() + 1).padStart(2, "0");
 
-      if (cronogramaYear !== "all" && year !== cronogramaYear) return false;
-      if (cronogramaMonth !== "all" && month !== cronogramaMonth) return false;
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      vencimento.setHours(0, 0, 0, 0);
+
+      const isVencida = vencimento < hoje;
+      const isFiltroDataAplicavel = !isVencida; 
+
+      if (isFiltroDataAplicavel) {
+        if (cronogramaYear !== "all" && year !== cronogramaYear) return false;
+        if (cronogramaMonth !== "all" && month !== cronogramaMonth) return false;
+      }
 
       if (cronogramaStatusFilter !== "all") {
-        const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0);
-        vencimento.setHours(0, 0, 0, 0);
-
         if (cronogramaStatusFilter === "vencidas" && vencimento >= hoje)
           return false;
         if (
@@ -5688,11 +5693,9 @@ export default function App() {
                                       !p.paga &&
                                       vencimento.getTime() === hoje.getTime();
                                     
-                                    const amanha = new Date(hoje);
-                                    amanha.setDate(amanha.getDate() + 1);
-                                    const isVencendoAmanha =
-                                      !p.paga && 
-                                      vencimento.getTime() === amanha.getTime();
+                                    const diffParaVencimento = vencimento.getTime() - hoje.getTime();
+                                    const diasParaVencimento = Math.ceil(diffParaVencimento / (1000 * 60 * 60 * 24));
+                                    const isPreVencimento = !p.paga && diasParaVencimento >= 1 && diasParaVencimento <= 3;
 
                                     let diasAtraso = 0;
                                     let valorAtualizado = p.valor;
@@ -6524,16 +6527,16 @@ export default function App() {
                                           </div>
                                         )}
 
-                                        {isVencendoAmanha && (
+                                        {isPreVencimento && (
                                           <div className="mt-3 pt-3 border-t border-blue-200 print:hidden">
                                             <a
-                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence amanhã, ${formatDate(p.dataVencimento)}.`)}`}
+                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`)}`}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="flex justify-center items-center gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
                                             >
                                               <Phone size={16} />
-                                              Pré-notificar Vencimento Amanhã
+                                              Pré-notificar Vencimento ({diasParaVencimento} dia{diasParaVencimento > 1 ? 's' : ''})
                                             </a>
                                           </div>
                                         )}
@@ -6983,8 +6986,10 @@ export default function App() {
                       const isVencida = vencimento < hoje;
                       const isVencendoHoje =
                         vencimento.getTime() === hoje.getTime();
-                      const isVencendoAmanha =
-                        vencimento.getTime() === amanha.getTime();
+                        
+                      const diffParaVencimento = vencimento.getTime() - hoje.getTime();
+                      const diasParaVencimento = Math.ceil(diffParaVencimento / (1000 * 60 * 60 * 24));
+                      const isPreVencimento = diasParaVencimento >= 1 && diasParaVencimento <= 3;
 
                       let dateLabel = formatDate(date);
                       let dateColor = "text-slate-700 bg-slate-100";
@@ -6996,8 +7001,8 @@ export default function App() {
                       } else if (isVencida) {
                         dateLabel += " (Vencida)";
                         dateColor = "text-red-800 bg-red-100 border-red-200";
-                      } else if (isVencendoAmanha) {
-                        dateLabel += " (Vence Amanhã)";
+                      } else if (isPreVencimento) {
+                        dateLabel += ` (Vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''})`;
                         dateColor = "text-blue-800 bg-blue-100 border-blue-200";
                       } else {
                         dateLabel += " (A Vencer)";
@@ -7061,8 +7066,8 @@ export default function App() {
                                             (() => {
                                               if (isVencendoHoje) {
                                                 return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
-                                              } else if (isVencendoAmanha) {
-                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence amanhã, ${formatDate(p.dataVencimento)}.`;
+                                              } else if (isPreVencimento) {
+                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`;
                                               } else if (isVencida) {
                                                 let dataBase = hoje;
                                                 if (
