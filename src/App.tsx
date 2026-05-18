@@ -990,7 +990,7 @@ export default function App() {
           vencimento.setHours(0, 0, 0, 0);
 
           const diffTime = hoje.getTime() - vencimento.getTime();
-          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const diasAtraso = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
           if (diasAtraso > 60) {
             return "inadimplente_antigo";
@@ -1063,7 +1063,7 @@ export default function App() {
           vencimento.setHours(0, 0, 0, 0);
 
           const diffTime = hoje.getTime() - vencimento.getTime();
-          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const diasAtraso = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
           if (diasAtraso > maxDias) {
             maxDias = diasAtraso;
@@ -1159,7 +1159,7 @@ export default function App() {
       const dataVenc = parseLocalDate(simulacao.dataVencimentoUnica);
       dataVenc.setHours(0, 0, 0, 0);
       const diffTime = dataVenc.getTime() - dataAtual.getTime();
-      diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      diasTotais = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
     }
 
     const fatorTempo = isMensal ? diasTotais / 30 : diasTotais;
@@ -1586,7 +1586,7 @@ export default function App() {
             0,
             dataBase.getTime() - vencimento.getTime(),
           );
-          const diasAtraso = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const diasAtraso = Math.round(diffTime / (1000 * 60 * 60 * 24));
           const taxaDia =
             parseFloat(sim.taxaAtrasoDia) ||
             parseFloat(adminSettings.taxaAtrasoDia) ||
@@ -2905,7 +2905,7 @@ export default function App() {
                                   0,
                                   dataBase.getTime() - vencimento.getTime(),
                                 );
-                                diasAtraso = Math.ceil(
+                                diasAtraso = Math.round(
                                   diffTime / (1000 * 60 * 60 * 24),
                                 );
                                 const taxaDia =
@@ -3614,7 +3614,7 @@ export default function App() {
           vencimento.getTime() !== hoje.getTime()
         )
           return false;
-        if (cronogramaStatusFilter === "a_vencer" && vencimento < hoje)
+        if (cronogramaStatusFilter === "a_vencer" && vencimento <= hoje)
           return false;
       }
 
@@ -4384,7 +4384,7 @@ export default function App() {
         const dataVenc = parseLocalDate(editSimData.dataVencimentoUnica);
         dataVenc.setHours(0, 0, 0, 0);
         const diffTime = dataVenc.getTime() - dataAtual.getTime();
-        diasTotais = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        diasTotais = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)));
       }
 
       const fatorTempo = isMensal ? diasTotais / 30 : diasTotais;
@@ -5694,7 +5694,7 @@ export default function App() {
                                       vencimento.getTime() === hoje.getTime();
                                     
                                     const diffParaVencimento = vencimento.getTime() - hoje.getTime();
-                                    const diasParaVencimento = Math.ceil(diffParaVencimento / (1000 * 60 * 60 * 24));
+                                    const diasParaVencimento = Math.round(diffParaVencimento / (1000 * 60 * 60 * 24));
                                     const isPreVencimento = !p.paga && diasParaVencimento >= 1 && diasParaVencimento <= 3;
 
                                     let diasAtraso = 0;
@@ -5726,7 +5726,7 @@ export default function App() {
                                         dataBase.getTime() -
                                           vencimento.getTime(),
                                       );
-                                      diasAtraso = Math.ceil(
+                                      diasAtraso = Math.round(
                                         diffTime / (1000 * 60 * 60 * 24),
                                       );
                                       const taxaDia =
@@ -6988,7 +6988,7 @@ export default function App() {
                         vencimento.getTime() === hoje.getTime();
                         
                       const diffParaVencimento = vencimento.getTime() - hoje.getTime();
-                      const diasParaVencimento = Math.ceil(diffParaVencimento / (1000 * 60 * 60 * 24));
+                      const diasParaVencimento = Math.round(diffParaVencimento / (1000 * 60 * 60 * 24));
                       const isPreVencimento = diasParaVencimento >= 1 && diasParaVencimento <= 3;
 
                       let dateLabel = formatDate(date);
@@ -7093,7 +7093,7 @@ export default function App() {
                                                   dataBase.getTime() -
                                                     vencimento.getTime(),
                                                 );
-                                                const diasAtraso = Math.ceil(
+                                                const diasAtraso = Math.round(
                                                   diffTime /
                                                     (1000 * 60 * 60 * 24),
                                                 );
