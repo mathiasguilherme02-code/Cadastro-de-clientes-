@@ -3598,13 +3598,8 @@ export default function App() {
       hoje.setHours(0, 0, 0, 0);
       vencimento.setHours(0, 0, 0, 0);
 
-      const isVencida = vencimento < hoje;
-      const isFiltroDataAplicavel = !isVencida; 
-
-      if (isFiltroDataAplicavel) {
-        if (cronogramaYear !== "all" && year !== cronogramaYear) return false;
-        if (cronogramaMonth !== "all" && month !== cronogramaMonth) return false;
-      }
+      if (cronogramaYear !== "all" && year !== cronogramaYear) return false;
+      if (cronogramaMonth !== "all" && month !== cronogramaMonth) return false;
 
       if (cronogramaStatusFilter !== "all") {
         if (cronogramaStatusFilter === "vencidas" && vencimento >= hoje)
