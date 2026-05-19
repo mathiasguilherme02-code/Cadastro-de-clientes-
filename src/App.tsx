@@ -5630,6 +5630,16 @@ export default function App() {
                                       {sim.prazo}
                                     </p>
                                   </div>
+                                  {sim.prazo !== "única" && (
+                                    <div>
+                                      <p className="text-sm text-slate-500">
+                                        Qtd. Parcelas
+                                      </p>
+                                      <p className="text-lg font-semibold text-slate-800">
+                                        {sim.quantidade}x
+                                      </p>
+                                    </div>
+                                  )}
                                   <div className="col-span-2 md:col-span-4 bg-yellow-50 p-3 rounded-lg border border-yellow-200 print:hidden">
                                     <p className="text-xs text-yellow-800 font-medium mb-1">
                                       Cálculo de Juros (Visão Admin)
@@ -8114,6 +8124,14 @@ export default function App() {
               </div>
             ) : (
               <>
+                <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-xl mb-6 text-sm">
+                  <h4 className="font-bold flex items-center gap-2 mb-1">
+                    <Info size={16} /> Opções de Prazos
+                  </h4>
+                  <p>
+                    Verifique as opções de prazos disponíveis. Temos <strong>parcela única, semanal, quinzenal e mensal</strong>. Escolha a que melhor se adapta à sua necessidade.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
