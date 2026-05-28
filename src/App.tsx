@@ -974,8 +974,7 @@ export default function App() {
     const clientSims =
       client.simulacoes?.filter(
         (s: any) =>
-          ((s.status === "aprovado" && s.clientAccepted !== "nao") ||
-            !s.status) &&
+          ((s.status === "aprovado" && s.clientAccepted === "sim") || (!s.status && s.clientAccepted !== "nao")) &&
           !s.arquivado,
       ) || [];
     let worstStatus = "sem_pendencias";
@@ -1046,8 +1045,7 @@ export default function App() {
     const clientSims =
       client.simulacoes?.filter(
         (s: any) =>
-          ((s.status === "aprovado" && s.clientAccepted !== "nao") ||
-            !s.status) &&
+          ((s.status === "aprovado" && s.clientAccepted === "sim") || (!s.status && s.clientAccepted !== "nao")) &&
           !s.arquivado,
       ) || [];
     let maxDias = 0;
@@ -1611,8 +1609,8 @@ export default function App() {
 
     clientSimulacoes.forEach((sim: any, index: number) => {
       if (
-        (sim.status === "aprovado" || !sim.status) &&
-        sim.clientAccepted !== "nao"
+        ((sim.status === "aprovado" && sim.clientAccepted === "sim") || (!sim.status && sim.clientAccepted !== "nao")) &&
+        !sim.arquivado
       ) {
         const simTotalOwed = calcularTotalAPagarAtualizado(sim);
 
@@ -3550,9 +3548,8 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter(
             (s: any) =>
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
-              s.status !== "renegociado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.arquivado,
           )
           .flatMap((s: any, sIdx: number) =>
@@ -3637,7 +3634,7 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .map((s: any, originalIndex: number) => ({ s, originalIndex }))
           .filter(
-            ({ s }: any) => s.status !== "pendente" && s.status !== "reprovado",
+            ({ s }: any) => ((s.status === "aprovado" && s.clientAccepted === "sim") || (!s.status && s.clientAccepted !== "nao") || s.status === "renegociado"),
           )
           .flatMap(({ s, originalIndex }: any) =>
             (s.parcelas || [])
@@ -3668,7 +3665,7 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .map((s: any, originalIndex: number) => ({ s, originalIndex }))
           .filter(
-            ({ s }: any) => s.status !== "pendente" && s.status !== "reprovado",
+            ({ s }: any) => ((s.status === "aprovado" && s.clientAccepted === "sim") || (!s.status && s.clientAccepted !== "nao") || s.status === "renegociado"),
           )
           .flatMap(({ s, originalIndex }: any) =>
             (s.parcelas || []).flatMap((p: any) =>
@@ -3689,9 +3686,8 @@ export default function App() {
           .map((s: any, originalIndex: number) => ({ s, originalIndex }))
           .filter(
             ({ s }: any) =>
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
-              s.status !== "renegociado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.arquivado,
           )
           .flatMap(({ s, originalIndex }: any) =>
@@ -3724,8 +3720,8 @@ export default function App() {
           .map((s: any, originalIndex: number) => ({ s, originalIndex }))
           .filter(
             ({ s }: any) =>
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.isRenegociacao,
           )
           .map(({ s, originalIndex }: any) => ({
@@ -3774,7 +3770,10 @@ export default function App() {
       .flatMap((c) =>
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter(
-            (s: any) => s.status !== "pendente" && s.status !== "reprovado",
+            (s: any) =>
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao") ||
+                s.status === "renegociado"),
           )
           .flatMap((s: any) => [
             ...(s.parcelas || [])
@@ -3808,9 +3807,8 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter(
             (s: any) =>
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
-              s.status !== "renegociado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.arquivado,
           )
           .flatMap((s: any) =>
@@ -3844,9 +3842,8 @@ export default function App() {
         (c.simulacoes || (c.simulacao ? [c.simulacao] : []))
           .filter(
             (s: any) =>
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
-              s.status !== "renegociado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.arquivado,
           )
           .flatMap((s: any) =>
@@ -3884,8 +3881,8 @@ export default function App() {
             return (
               date &&
               date.startsWith(fluxoFilter) &&
-              s.status !== "pendente" &&
-              s.status !== "reprovado" &&
+              ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                (!s.status && s.clientAccepted !== "nao")) &&
               !s.isRenegociacao
             );
           },
@@ -6838,9 +6835,8 @@ export default function App() {
                                   )
                                     .filter(
                                       (s: any) =>
-                                        s.status !== "pendente" &&
-                                        s.status !== "reprovado" &&
-                                        s.status !== "renegociado",
+                                        ((s.status === "aprovado" && s.clientAccepted === "sim") ||
+                                          (!s.status && s.clientAccepted !== "nao")),
                                     )
                                     .reduce(
                                       (acc: number, sim: any) =>
