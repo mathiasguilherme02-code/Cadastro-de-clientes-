@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
-import { readFileSync } from "fs";
+import fs, { readFileSync, existsSync } from "fs";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -14,9 +14,13 @@ const __dirname = path.dirname(__filename);
 const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json');
 let serviceAccount;
 try {
-  serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+  if (existsSync(serviceAccountPath)) {
+    serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    serviceAccount = typeof process.env.FIREBASE_SERVICE_ACCOUNT === 'string' ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT) : process.env.FIREBASE_SERVICE_ACCOUNT;
+  }
 } catch (e) {
-  console.error("Failed to load serviceAccountKey.json", e);
+  console.error("Failed to load service account credentials", e);
 }
 
 let db: any;
