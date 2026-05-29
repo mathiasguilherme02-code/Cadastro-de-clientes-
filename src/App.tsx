@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Toaster, toast } from "sonner";
-import { CompromissosView } from "./components/CompromissosView";
 import {
   User,
   MapPin,
@@ -163,7 +162,7 @@ export default function App() {
     return "welcome";
   });
   const [adminTab, setAdminTab] = useState<
-    "clientes" | "cronograma" | "fluxo_caixa" | "mensagens" | "compromissos"
+    "clientes" | "cronograma" | "fluxo_caixa" | "mensagens"
   >("clientes");
   const [cronogramaDate, setCronogramaDate] = useState(getLocalISODate());
   const [cronogramaYear, setCronogramaYear] = useState(getLocalISOYear());
@@ -4816,16 +4815,6 @@ export default function App() {
                 </span>
               )}
             </button>
-            <button
-              onClick={() => {
-                setAdminTab("compromissos");
-                setSelectedClient(null);
-                setSearchTerm("");
-              }}
-              className={`pb-3 px-4 text-sm font-medium transition-colors ${adminTab === "compromissos" ? "border-b-2 border-yellow-500 text-yellow-600" : "text-slate-500 hover:text-slate-700"}`}
-            >
-              Compromissos
-            </button>
           </div>
 
           {!selectedClient && adminTab === "clientes" && (
@@ -7869,12 +7858,6 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
-
-          {adminTab === "compromissos" && (
-            <div className="mb-8">
-              <CompromissosView clients={clients} />
             </div>
           )}
         </div>
