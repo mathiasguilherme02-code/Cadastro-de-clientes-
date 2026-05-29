@@ -4328,8 +4328,8 @@ export default function App() {
           ? sim.dataCriacao.split("T")[0]
           : getLocalISODate()),
         dataVencimentoUnica:
-          sim.prazo === "única" && sim.parcelas && sim.parcelas.length > 0
-            ? sim.parcelas[0].dataVencimento.split("T")[0]
+          sim.prazo === "única"
+            ? (sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split("T")[0] : (sim.dataVencimentoUnica || ""))
             : "",
         valorParcela: "", // Do not pre-fill, let it auto-calculate unless user overrides
       });
@@ -5627,13 +5627,22 @@ export default function App() {
                                       {sim.prazo}
                                     </p>
                                   </div>
-                                  {sim.prazo !== "única" && (
+                                  {sim.prazo !== "única" ? (
                                     <div>
                                       <p className="text-sm text-slate-500">
                                         Qtd. Parcelas
                                       </p>
                                       <p className="text-lg font-semibold text-slate-800">
                                         {sim.quantidade}x
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div>
+                                      <p className="text-sm text-slate-500">
+                                        Data de Pagamento
+                                      </p>
+                                      <p className="text-lg font-semibold text-slate-800">
+                                        {sim.dataVencimentoUnica ? formatDate(sim.dataVencimentoUnica) : (sim.parcelas?.[0]?.dataVencimento ? formatDate(sim.parcelas[0].dataVencimento) : "Pendente")}
                                       </p>
                                     </div>
                                   )}
