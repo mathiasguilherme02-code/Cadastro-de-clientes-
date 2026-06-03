@@ -338,6 +338,87 @@ export default function App() {
     jurosMensal: string;
   } | null>(null);
 
+  React.useEffect(() => {
+    const handleConfirmarCongelamento = async () => {
+      if (!congelarModal || !selectedClient) return;
+      try {
+        const { simIndex, meses, jurosMensal } = congelarModal;
+        const res = await fetch(`/api/clients/${selectedClient.id}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        if (!res.ok) throw new Error("Failed to fetch latest client data");
+        const latestClient = await res.json();
+        const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+        const updatedSimulacoes = [...clientSimulacoes];
+        const sim = updatedSimulacoes[simIndex];
+        
+        let parcelas = [...(sim.parcelas || [])];
+        const unpaidParcelas = parcelas.filter((p: any) => !p.paga);
+        
+        if (unpaidParcelas.length === 0) {
+          alert("Não há parcelas pendentes para congelar.");
+          setCongelarModal(null);
+          return;
+        }
+        
+        const firstUnpaidDate = parseLocalDate(unpaidParcelas[0].dataVencimento);
+        firstUnpaidDate.setHours(0,0,0,0);
+        
+        // Push dates of all unpaid parcelas by 'meses' months
+        for (let p of unpaidParcelas) {
+           let d = parseLocalDate(p.dataVencimento);
+           d.setHours(0,0,0,0);
+           d.setMonth(d.getMonth() + meses);
+           p.dataVencimento = getLocalISODate(d);
+        }
+        
+        // Insert 'meses' new parcelas for the interest
+        const novasParcelasDeJuros = [];
+        for (let i = 0; i < meses; i++) {
+           let d = new Date(firstUnpaidDate);
+           d.setMonth(d.getMonth() + i);
+           novasParcelasDeJuros.push({
+              dataVencimento: getLocalISODate(d),
+              valor: parseFloat(jurosMensal),
+              paga: false,
+              isCongelamento: true
+           });
+        }
+        
+        // Reassemble and renumber
+        parcelas = [...parcelas.filter((p: any) => p.paga), ...novasParcelasDeJuros, ...unpaidParcelas];
+        parcelas.forEach((p: any, idx) => {
+           p.numero = idx + 1;
+        });
+        
+        updatedSimulacoes[simIndex] = {
+           ...sim,
+           isCongelado: true,
+           parcelas: parcelas
+        };
+        
+        const updatedClient = {
+          ...latestClient,
+          simulacoes: updatedSimulacoes
+        };
+        
+        const success = await updateClientWithUndo(updatedClient, "Congelar Empréstimo");
+        if (success) {
+           setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
+           setSelectedClient(updatedClient);
+           setCongelarModal(null);
+           toast.success("Empréstimo congelado com sucesso!");
+        } else throw new Error("Update falhou");
+      } catch (error) {
+        console.error("Erro ao congelar empréstimo:", error);
+        toast.error("Erro ao congelar empréstimo");
+      }
+    };
+    
+    window.addEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
+    return () => window.removeEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
+  }, [congelarModal, selectedClient, adminToken]);
+
   const [adminSettings, setAdminSettings] = useState({
     taxaJuros: "40",
     taxaAtrasoDia: "8",
@@ -4721,87 +4802,6 @@ export default function App() {
         buttons.forEach((btn: any) => (btn.style.display = ""));
       }
     };
-
-    React.useEffect(() => {
-      const handleConfirmarCongelamento = async () => {
-        if (!congelarModal || !selectedClient) return;
-        try {
-          const { simIndex, meses, jurosMensal } = congelarModal;
-          const res = await fetch(`/api/clients/${selectedClient.id}`, {
-            headers: { Authorization: `Bearer ${adminToken}` },
-          });
-          if (!res.ok) throw new Error("Failed to fetch latest client data");
-          const latestClient = await res.json();
-          const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
-          const updatedSimulacoes = [...clientSimulacoes];
-          const sim = updatedSimulacoes[simIndex];
-          
-          let parcelas = [...(sim.parcelas || [])];
-          const unpaidParcelas = parcelas.filter(p => !p.paga);
-          
-          if (unpaidParcelas.length === 0) {
-            alert("Não há parcelas pendentes para congelar.");
-            setCongelarModal(null);
-            return;
-          }
-          
-          const firstUnpaidDate = parseLocalDate(unpaidParcelas[0].dataVencimento);
-          firstUnpaidDate.setHours(0,0,0,0);
-          
-          // Push dates of all unpaid parcelas by 'meses' months
-          for (let p of unpaidParcelas) {
-             let d = parseLocalDate(p.dataVencimento);
-             d.setHours(0,0,0,0);
-             d.setMonth(d.getMonth() + meses);
-             p.dataVencimento = getLocalISODate(d);
-          }
-          
-          // Insert 'meses' new parcelas for the interest
-          const novasParcelasDeJuros = [];
-          for (let i = 0; i < meses; i++) {
-             let d = new Date(firstUnpaidDate);
-             d.setMonth(d.getMonth() + i);
-             novasParcelasDeJuros.push({
-                dataVencimento: getLocalISODate(d),
-                valor: parseFloat(jurosMensal),
-                paga: false,
-                isCongelamento: true
-             });
-          }
-          
-          // Reassemble and renumber
-          parcelas = [...parcelas.filter(p => p.paga), ...novasParcelasDeJuros, ...unpaidParcelas];
-          parcelas.forEach((p, idx) => {
-             p.numero = idx + 1;
-          });
-          
-          updatedSimulacoes[simIndex] = {
-             ...sim,
-             isCongelado: true,
-             parcelas: parcelas
-          };
-          
-          const updatedClient = {
-            ...latestClient,
-            simulacoes: updatedSimulacoes
-          };
-          
-          const success = await updateClientWithUndo(updatedClient, "Congelar Empréstimo");
-          if (success) {
-             setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
-             setSelectedClient(updatedClient);
-             setCongelarModal(null);
-             toast.success("Empréstimo congelado com sucesso!");
-          } else throw new Error("Update falhou");
-        } catch (error) {
-          console.error("Erro ao congelar empréstimo:", error);
-          toast.error("Erro ao congelar empréstimo");
-        }
-      };
-      
-      window.addEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
-      return () => window.removeEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
-    }, [congelarModal, selectedClient, adminToken]);
 
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
