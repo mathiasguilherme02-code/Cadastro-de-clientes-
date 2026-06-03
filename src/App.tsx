@@ -331,6 +331,13 @@ export default function App() {
     tipo: "",
   });
 
+  const [congelarModal, setCongelarModal] = useState<{
+    isOpen: boolean;
+    simIndex: number;
+    meses: number;
+    jurosMensal: string;
+  } | null>(null);
+
   const [adminSettings, setAdminSettings] = useState({
     taxaJuros: "40",
     taxaAtrasoDia: "8",
@@ -2031,6 +2038,62 @@ export default function App() {
         </div>
       )}
 
+      {congelarModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
+            <button
+              onClick={() => setCongelarModal(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X size={24} />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-cyan-100 text-cyan-600 rounded-full flex items-center justify-center mb-4">
+                <Activity size={32} />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">
+                Congelar Empréstimo
+              </h3>
+              <p className="text-sm text-slate-600 mb-4">
+                Separe os juros aplicados do valor principal. As parcelas pendentes da dívida serão adiadas, e novas parcelas contendo APENAS o valor referente aos juros mensais (R$ {congelarModal.jurosMensal}) serão geradas.
+              </p>
+              
+              <div className="w-full text-left mb-6">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Quantos meses deseja congelar (pagar apenas juros)?
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={congelarModal.meses}
+                  onChange={(e) => setCongelarModal({...congelarModal, meses: parseInt(e.target.value) || 1})}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                />
+              </div>
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setCongelarModal(null)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    // Triggers the handleConfirmarCongelamento logic mapped below
+                    window.dispatchEvent(new CustomEvent("app:confirmar_congelamento"));
+                  }}
+                  className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white font-medium py-3 px-4 rounded-xl transition-colors"
+                >
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showContactModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative">
@@ -2927,6 +2990,7 @@ export default function App() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-bold text-lg text-slate-800">
                                         Parcela {p.numero}
+                                        {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
                                       </span>
                                       {isVencendoHoje && (
                                         <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded animate-pulse">
@@ -4658,6 +4722,87 @@ export default function App() {
       }
     };
 
+    React.useEffect(() => {
+      const handleConfirmarCongelamento = async () => {
+        if (!congelarModal || !selectedClient) return;
+        try {
+          const { simIndex, meses, jurosMensal } = congelarModal;
+          const res = await fetch(`/api/clients/${selectedClient.id}`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+          });
+          if (!res.ok) throw new Error("Failed to fetch latest client data");
+          const latestClient = await res.json();
+          const clientSimulacoes = latestClient.simulacoes || (latestClient.simulacao ? [latestClient.simulacao] : []);
+          const updatedSimulacoes = [...clientSimulacoes];
+          const sim = updatedSimulacoes[simIndex];
+          
+          let parcelas = [...(sim.parcelas || [])];
+          const unpaidParcelas = parcelas.filter(p => !p.paga);
+          
+          if (unpaidParcelas.length === 0) {
+            alert("Não há parcelas pendentes para congelar.");
+            setCongelarModal(null);
+            return;
+          }
+          
+          const firstUnpaidDate = parseLocalDate(unpaidParcelas[0].dataVencimento);
+          firstUnpaidDate.setHours(0,0,0,0);
+          
+          // Push dates of all unpaid parcelas by 'meses' months
+          for (let p of unpaidParcelas) {
+             let d = parseLocalDate(p.dataVencimento);
+             d.setHours(0,0,0,0);
+             d.setMonth(d.getMonth() + meses);
+             p.dataVencimento = getLocalISODate(d);
+          }
+          
+          // Insert 'meses' new parcelas for the interest
+          const novasParcelasDeJuros = [];
+          for (let i = 0; i < meses; i++) {
+             let d = new Date(firstUnpaidDate);
+             d.setMonth(d.getMonth() + i);
+             novasParcelasDeJuros.push({
+                dataVencimento: getLocalISODate(d),
+                valor: parseFloat(jurosMensal),
+                paga: false,
+                isCongelamento: true
+             });
+          }
+          
+          // Reassemble and renumber
+          parcelas = [...parcelas.filter(p => p.paga), ...novasParcelasDeJuros, ...unpaidParcelas];
+          parcelas.forEach((p, idx) => {
+             p.numero = idx + 1;
+          });
+          
+          updatedSimulacoes[simIndex] = {
+             ...sim,
+             isCongelado: true,
+             parcelas: parcelas
+          };
+          
+          const updatedClient = {
+            ...latestClient,
+            simulacoes: updatedSimulacoes
+          };
+          
+          const success = await updateClientWithUndo(updatedClient, "Congelar Empréstimo");
+          if (success) {
+             setClients(prev => prev.map(c => c.id === latestClient.id ? updatedClient : c));
+             setSelectedClient(updatedClient);
+             setCongelarModal(null);
+             toast.success("Empréstimo congelado com sucesso!");
+          } else throw new Error("Update falhou");
+        } catch (error) {
+          console.error("Erro ao congelar empréstimo:", error);
+          toast.error("Erro ao congelar empréstimo");
+        }
+      };
+      
+      window.addEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
+      return () => window.removeEventListener("app:confirmar_congelamento", handleConfirmarCongelamento);
+    }, [congelarModal, selectedClient, adminToken]);
+
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3 print:hidden">
@@ -5413,6 +5558,25 @@ export default function App() {
                                 >
                                   <RefreshCw size={18} />
                                 </button>
+                                {(sim.prazo === "mensal" || sim.prazo === "única") && (
+                                  <button
+                                    onClick={() => {
+                                       const principal = parseFloat(sim.valorSolicitado);
+                                       const taxa = parseFloat(sim.taxaJuros) || 40;
+                                       const juros = principal * (taxa / 100);
+                                       setCongelarModal({
+                                         isOpen: true,
+                                         simIndex,
+                                         meses: 1,
+                                         jurosMensal: juros.toFixed(2),
+                                       });
+                                    }}
+                                    className="ml-2 text-cyan-500 hover:text-cyan-700 p-2 rounded-lg hover:bg-cyan-50 transition-colors"
+                                    title="Congelar Empréstimo (Pagar Só Juros)"
+                                  >
+                                    <Activity size={18} />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() =>
                                     startEditingSimulacao(simIndex, sim)
@@ -5765,6 +5929,7 @@ export default function App() {
                                           <div className="flex items-center gap-2">
                                             <span className="font-semibold text-slate-800">
                                               Parcela {p.numero}
+                                              {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
                                             </span>
                                             {!isEditing && (
                                               <button
@@ -8310,6 +8475,7 @@ export default function App() {
                             >
                               <span className="font-medium text-slate-700">
                                 Parcela {p.numero}
+                                {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
                               </span>
                               <div className="text-right">
                                 <div className="text-sm text-slate-500">
