@@ -157,10 +157,31 @@ export default function App() {
     | "client_dashboard"
   >(() => {
     const params = new URLSearchParams(window.location.search);
+    const v = params.get("v");
+    if (v) return v as any;
     if (params.get("cliente") === "true") return "client_login";
     if (params.get("admin") === "true") return "admin_login";
     return "welcome";
   });
+
+  useEffect(() => {
+    const handlePopState = (e: PopStateEvent) => {
+      if (e.state?.view) {
+        setView(e.state.view);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (window.history.state?.view !== view) {
+      const params = new URLSearchParams(window.location.search);
+      params.set("v", view);
+      window.history.pushState({ view }, "", `?${params.toString()}`);
+    }
+  }, [view]);
+
   const [adminTab, setAdminTab] = useState<
     "clientes" | "cronograma" | "fluxo_caixa" | "mensagens"
   >("clientes");
@@ -2655,6 +2676,13 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3">
           <button
+            onClick={() => window.history.back()}
+            className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+            title="Clique para retroceder, mantenha pressionado para ver histórico"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button
             onClick={toggleFullscreen}
             className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
             title="Alternar Tela Cheia"
@@ -4806,6 +4834,13 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3 print:hidden">
+          <button
+            onClick={() => window.history.back()}
+            className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium print:hidden"
+            title="Clique para retroceder, mantenha pressionado para ver histórico"
+          >
+            <ArrowLeft size={16} />
+          </button>
           <button
             onClick={toggleFullscreen}
             className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
@@ -8177,6 +8212,13 @@ export default function App() {
       <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
         <div className="absolute top-4 left-4 flex gap-3">
           <button
+            onClick={() => window.history.back()}
+            className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+            title="Clique para retroceder, mantenha pressionado para ver histórico"
+          >
+            <ArrowLeft size={16} />
+          </button>
+          <button
             onClick={toggleFullscreen}
             className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
             title="Alternar Tela Cheia"
@@ -8551,6 +8593,13 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8 font-sans relative">
       <Toaster position="top-right" richColors />
       <div className="absolute top-4 left-4 flex gap-3">
+        <button
+          onClick={() => window.history.back()}
+          className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
+          title="Clique para retroceder, mantenha pressionado para ver histórico"
+        >
+          <ArrowLeft size={16} />
+        </button>
         <button
           onClick={toggleFullscreen}
           className="flex items-center gap-2 bg-white text-slate-800 border border-slate-300 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shadow-sm text-sm font-medium"
