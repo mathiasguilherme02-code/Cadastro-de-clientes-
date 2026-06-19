@@ -233,6 +233,37 @@ export default function App() {
     }
   };
 
+  const handleViewFile = (file: any) => {
+    if (!file.url) return;
+    try {
+      if (file.url.startsWith("data:")) {
+        const arr = file.url.split(",");
+        const mimeMatch = arr[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : "";
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+          u8arr[n] = bstr.charCodeAt(n);
+        }
+        const blob = new Blob([u8arr], { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = file.name || "arquivo_anexado";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } else {
+        window.open(file.url, "_blank");
+      }
+    } catch (e) {
+      console.error("Error opening file", e);
+      window.open(file.url, "_blank");
+    }
+  };
+
   const updateClientWithUndo = async (
     updatedClient: any,
     actionName: string,
@@ -5358,14 +5389,12 @@ export default function App() {
                             >
                               {file.name}
                             </p>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button
+                              onClick={() => handleViewFile(file)}
                               className="mt-3 text-sm text-indigo-600 hover:text-indigo-800 font-medium flex items-center gap-1"
                             >
                               <Eye size={16} /> Ver Arquivo Original
-                            </a>
+                            </button>
                           </div>
                         ),
                       )}
