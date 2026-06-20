@@ -3131,7 +3131,17 @@ export default function App() {
                                       <span className="font-bold text-lg text-slate-800">
                                         Parcela {p.numero}
                                         {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
-                                        {p.jurosCongelados && p.dataCongelamento && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">Congelada em {formatDate(p.dataCongelamento)}</span>}
+                                        {p.jurosCongelados && p.dataCongelamento && (
+                                          <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">
+                                            Congelada em {formatDate(p.dataCongelamento)}
+                                            {(() => {
+                                              const v = parseLocalDate(p.dataVencimento);
+                                              const c = parseLocalDate(p.dataCongelamento);
+                                              const diff = Math.max(0, Math.round((c.getTime() - v.getTime()) / (1000 * 60 * 60 * 24)));
+                                              return diff > 0 ? ` (${diff} dias atraso)` : "";
+                                            })()}
+                                          </span>
+                                        )}
                                       </span>
                                       {isVencendoHoje && (
                                         <span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-0.5 rounded animate-pulse">
@@ -5995,7 +6005,17 @@ export default function App() {
                                             <span className="font-semibold text-slate-800">
                                               Parcela {p.numero}
                                               {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
-                                              {p.jurosCongelados && p.dataCongelamento && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">Congelada em {formatDate(p.dataCongelamento)}</span>}
+                                              {p.jurosCongelados && p.dataCongelamento && (
+                                                <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">
+                                                  Congelada em {formatDate(p.dataCongelamento)}
+                                                  {(() => {
+                                                    const v = parseLocalDate(p.dataVencimento);
+                                                    const c = parseLocalDate(p.dataCongelamento);
+                                                    const diff = Math.max(0, Math.round((c.getTime() - v.getTime()) / (1000 * 60 * 60 * 24)));
+                                                    return diff > 0 ? ` (${diff} dias atraso)` : "";
+                                                  })()}
+                                                </span>
+                                              )}
                                             </span>
                                             {!isEditing && (
                                               <button
@@ -8549,7 +8569,17 @@ export default function App() {
                               <span className="font-medium text-slate-700">
                                 Parcela {p.numero}
                                 {p.isCongelamento && <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-0.5 rounded-full font-medium align-middle">Apenas Juros</span>}
-                                {p.jurosCongelados && p.dataCongelamento && <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">Congelada em {formatDate(p.dataCongelamento)}</span>}
+                                {p.jurosCongelados && p.dataCongelamento && (
+                                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium align-middle">
+                                    Congelada em {formatDate(p.dataCongelamento)}
+                                    {(() => {
+                                      const v = parseLocalDate(p.dataVencimento);
+                                      const c = parseLocalDate(p.dataCongelamento);
+                                      const diff = Math.max(0, Math.round((c.getTime() - v.getTime()) / (1000 * 60 * 60 * 24)));
+                                      return diff > 0 ? ` (${diff} dias atraso)` : "";
+                                    })()}
+                                  </span>
+                                )}
                               </span>
                               <div className="text-right">
                                 <div className="text-sm text-slate-500">
