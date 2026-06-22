@@ -5038,6 +5038,42 @@ export default function App() {
                 </span>
               )}
             </button>
+            <div className="ml-auto flex items-center mb-3">
+              <button
+                onClick={async () => {
+                  if (!confirm("Deseja gerar e baixar um arquivo ZIP contendo todo o banco de dados e arquivos de imagens/comprovantes de todos os clientes? Isso pode demorar alguns minutos.")) return;
+                  setIsBackingUp(true);
+                  try {
+                    const res = await fetch("/api/backup", {
+                      headers: {
+                        Authorization: `Bearer ${adminToken}`,
+                      },
+                    });
+                    if (!res.ok) throw new Error("Falha ao gerar backup");
+                    const blob = await res.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `backup_gm_${new Date().toISOString().slice(0, 10)}.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                    alert("Backup concluído com sucesso!");
+                  } catch (error) {
+                    console.error("Backup error:", error);
+                    alert("Erro ao gerar backup. Tente novamente mais tarde.");
+                  } finally {
+                    setIsBackingUp(false);
+                  }
+                }}
+                disabled={isBackingUp}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors text-sm font-medium ${isBackingUp ? "bg-slate-200 text-slate-500 cursor-not-allowed" : "bg-blue-100 hover:bg-blue-200 text-blue-800"}`}
+              >
+                <Download size={16} className={isBackingUp ? "animate-pulse" : ""} />
+                {isBackingUp ? "Gerando Backup..." : "Fazer Backup Geral"}
+              </button>
+            </div>
           </div>
 
           {!selectedClient && adminTab === "clientes" && (
@@ -5047,55 +5083,19 @@ export default function App() {
                   <LayoutDashboard size={20} className="text-yellow-500" />
                   Configurações Globais de Taxas
                 </h2>
-                <div className="flex gap-3 items-center">
-                  <button
-                    onClick={async () => {
-                      if (!confirm("Deseja gerar e baixar um arquivo ZIP contendo todo o banco de dados e arquivos de imagens/comprovantes de todos os clientes? Isso pode demorar alguns minutos.")) return;
-                      setIsBackingUp(true);
-                      try {
-                        const res = await fetch("/api/backup", {
-                          headers: {
-                            Authorization: `Bearer ${adminToken}`,
-                          },
-                        });
-                        if (!res.ok) throw new Error("Falha ao gerar backup");
-                        const blob = await res.blob();
-                        const url = window.URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `backup_gm_${new Date().toISOString().slice(0, 10)}.zip`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-                        alert("Backup concluído com sucesso!");
-                      } catch (error) {
-                        console.error("Backup error:", error);
-                        alert("Erro ao gerar backup. Tente novamente mais tarde.");
-                      } finally {
-                        setIsBackingUp(false);
-                      }
-                    }}
-                    disabled={isBackingUp}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm font-medium ${isBackingUp ? "bg-slate-300 text-slate-500 cursor-not-allowed" : "bg-blue-100 hover:bg-blue-200 text-blue-800"}`}
-                  >
-                    <Download size={16} className={isBackingUp ? "animate-pulse" : ""} />
-                    {isBackingUp ? "Gerando Backup..." : "Fazer Backup Geral"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      const link = `https://ais-pre-iuaewkhwf2i2wi4bd7n74o-6135474589.us-east1.run.app/?cliente=true`;
-                      navigator.clipboard.writeText(link);
-                      alert(
-                        "Link da Área do Cliente copiado para a área de transferência!\n\nEnvie este link para os seus clientes.",
-                      );
-                    }}
-                    className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    <User size={16} />
-                    Copiar Link do Cliente
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    const link = `https://ais-pre-iuaewkhwf2i2wi4bd7n74o-6135474589.us-east1.run.app/?cliente=true`;
+                    navigator.clipboard.writeText(link);
+                    alert(
+                      "Link da Área do Cliente copiado para a área de transferência!\n\nEnvie este link para os seus clientes.",
+                    );
+                  }}
+                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+                >
+                  <User size={16} />
+                  Copiar Link do Cliente
+                </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                 <div>
