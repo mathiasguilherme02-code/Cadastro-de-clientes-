@@ -1,4 +1,5 @@
 import express from "express";
+import archiver from "archiver";
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
@@ -633,6 +634,70 @@ app.post("/api/chat/:clientId/messages/:messageId/restore", requireAdmin, async 
   } catch (error) {
     console.error("Error restoring message:", error);
     res.status(500).json({ error: "Falha ao restaurar mensagem" });
+  }
+});
+
+// Backup route for admin
+app.get("/api/backup", requireAdmin, async (req, res) => {
+  try {
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    
+    res.attachment(`backup_gm_${new Date().toISOString().slice(0, 10)}.zip`);
+    archive.on('error', (err) => {
+      console.error("Archive error:", err);
+    });
+
+    archive.pipe(res);
+
+    // 1. Export Database
+    const dbData: any = {};
+    if (db) {
+      const collectionsToBackup = ['clients', 'chats', 'admin'];
+      for (const colName of collectionsToBackup) {
+        try {
+          const snapshot = await db.collection(colName).get();
+          dbData[colName] = [];
+          snapshot.forEach((doc: any) => {
+            dbData[colName].push({ id: doc.id, ...doc.data() });
+          });
+          
+          if (colName === 'chats') {
+             // Fetch messages subcollections
+             for (const doc of snapshot.docs) {
+                const msgsSnap = await db.collection('chats').doc(doc.id).collection('messages').get();
+                const msgs: any[] = [];
+                msgsSnap.forEach((m: any) => msgs.push({ id: m.id, ...m.data() }));
+                const idx = dbData['chats'].findIndex((c: any) => c.id === doc.id);
+                if (idx !== -1) dbData['chats'][idx].messages = msgs;
+             }
+          }
+        } catch (e) {
+          console.error(`Error backing up collection ${colName}:`, e);
+        }
+      }
+      archive.append(JSON.stringify(dbData, null, 2), { name: 'database_backup.json' });
+    }
+
+    // 2. Export Storage Files
+    if (storage) {
+      try {
+        const [files] = await storage.getFiles();
+        for (const file of files) {
+          const fileStream = file.createReadStream();
+          archive.append(fileStream, { name: `storage/${file.name}` });
+        }
+      } catch (e) {
+        console.error("Error backing up files:", e);
+        archive.append(JSON.stringify({ error: "Failed to backup files", details: String(e) }), { name: 'storage_errors.txt' });
+      }
+    }
+
+    await archive.finalize();
+  } catch (error: any) {
+    console.error("Backup generation failed:", error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Falha ao gerar backup", details: error.message });
+    }
   }
 });
 
