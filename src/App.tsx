@@ -1112,7 +1112,7 @@ export default function App() {
     const dataStrVencimento = p.dataVencimento.split('T')[0].split('-').reverse().join('/');
     const valor40Porcento = formatCurrency(p.valor * 0.4);
 
-    let mensagem = `Olá, ${nome}. A GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${dataStrVencimento}.\nNossa política de trabalho permite congelar seus juros diários por até 7 dias, para isso precisa efetuar o pagamento de 40% do valor da parcela, que hoje é ${valor40Porcento}. Porém, se vencer esse prazo de 7 dias, seus juros serão atualizados e será abatido o que foi enviado.\n\n`;
+    let mensagem = `Olá, ${nome}. A GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${dataStrVencimento}.\nNossa política de trabalho, que permite congelar seus juros diários por até 7 dias, para isso precisa efetuar o pagamento de 40% do valor da parcela, que hoje é ${valor40Porcento}. Porém, se vencer esse prazo de 7 dias, seus juros serão atualizados e será abatido o que foi enviado.\n\n`;
 
     if (p.abatimentos && p.abatimentos.length > 0) {
       mensagem += `Você realizou os seguintes pagamentos/abatimentos nesta parcela:\n`;
