@@ -1107,6 +1107,36 @@ export default function App() {
     return dateString;
   };
 
+  const generateVencidaMessage = (nomeCompleto: string, p: any, diasAtraso: number, valorAtualizado: number) => {
+    const nome = nomeCompleto.split(" ")[0];
+    const dataStrVencimento = p.dataVencimento.split('T')[0].split('-').reverse().join('/');
+    const valor40Porcento = formatCurrency(p.valor * 0.4);
+
+    let mensagem = `Olá, ${nome}. A GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${dataStrVencimento}.\nNossa política de trabalho permite congelar seus juros diários por até 7 dias, para isso precisa efetuar o pagamento de 40% do valor da parcela, que hoje é ${valor40Porcento}. Porém, se vencer esse prazo de 7 dias, seus juros serão atualizados e será abatido o que foi enviado.\n\n`;
+
+    if (p.abatimentos && p.abatimentos.length > 0) {
+      mensagem += `Você realizou os seguintes pagamentos/abatimentos nesta parcela:\n`;
+      const hoje = parseLocalDate(getLocalISODate());
+      p.abatimentos.forEach((a: any) => {
+        const dataA = parseLocalDate(a.data);
+        const diff = Math.max(0, hoje.getTime() - dataA.getTime());
+        const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const dataStr = a.data.split('-').reverse().join('/');
+        mensagem += `- ${dataStr}: ${formatCurrency(a.valor)} (há ${dias} dia${dias !== 1 ? 's' : ''})\n`;
+      });
+      mensagem += `\n`;
+    }
+
+    if (p.jurosCongelados) {
+      mensagem += `O valor restante para pagamento é de ${formatCurrency(valorAtualizado)}.\n`;
+    } else {
+      mensagem += `O valor restante, atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.\n`;
+    }
+    mensagem += `Por favor, regularize o quanto antes para evitar maiores encargos.`;
+    
+    return mensagem;
+  };
+
   const getClientStatus = (client: any) => {
     if (client.statusManual && client.statusManual !== "automatico") {
       return client.statusManual;
@@ -6799,7 +6829,7 @@ export default function App() {
                                         {isVencida && !isEditing && (
                                           <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
                                             <a
-                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${formatDate(p.dataVencimento)}. ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`)}`}
+                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(generateVencidaMessage(selectedClient.nomeCompleto, p, diasAtraso, valorAtualizado))}`}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -7419,7 +7449,7 @@ export default function App() {
                                                   valorAtualizado -
                                                     abatimentosTotal,
                                                 );
-                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${formatDate(p.dataVencimento)}. ${p.jurosCongelados ? `O valor para pagamento é de ${formatCurrency(valorAtualizado)}.` : `O valor atualizado com juros de atraso (${diasAtraso} dias) é de ${formatCurrency(valorAtualizado)}.`} Por favor, regularize o quanto antes para evitar maiores encargos.`;
+                                                return generateVencidaMessage(p.clientName, p, diasAtraso, valorAtualizado);
                                               }
                                               return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                             })(),
