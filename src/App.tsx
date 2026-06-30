@@ -1056,7 +1056,7 @@ export default function App() {
   }, []);
 
   const validateCPF = (cpf: string) => {
-    cpf = cpf.replace(/[^\d]+/g, "");
+    cpf = (cpf || "").replace(/[^\d]+/g, "");
     if (cpf === "") return false;
     if (
       cpf.length !== 11 ||
@@ -3824,9 +3824,9 @@ export default function App() {
       )
       .filter((p) => !p.paga)
       .sort((a, b) => {
-        const dateCompare = a.dataVencimento.localeCompare(b.dataVencimento);
+        const dateCompare = (a.dataVencimento || "").localeCompare(b.dataVencimento || "");
         if (dateCompare !== 0) return dateCompare;
-        return a.clientName.localeCompare(b.clientName);
+        return (a.clientName || "").localeCompare(b.clientName || "");
       });
 
     const filteredCronogramaParcelas = cronogramaParcelas.filter((p: any) => {
@@ -4062,12 +4062,13 @@ export default function App() {
               .filter((p: any) => {
                 const hoje = new Date();
                 hoje.setHours(0, 0, 0, 0);
-                const vencimento = parseLocalDate(p.dataVencimento);
+                const date = p.dataVencimento || "";
+                const vencimento = parseLocalDate(date);
                 vencimento.setHours(0, 0, 0, 0);
                 return (
                   !p.paga &&
                   vencimento >= hoje &&
-                  p.dataVencimento.startsWith(fluxoFilter)
+                  date.startsWith(fluxoFilter)
                 );
               })
               .map((p: any) => {
@@ -4097,12 +4098,13 @@ export default function App() {
               .filter((p: any) => {
                 const hoje = new Date();
                 hoje.setHours(0, 0, 0, 0);
-                const vencimento = parseLocalDate(p.dataVencimento);
+                const date = p.dataVencimento || "";
+                const vencimento = parseLocalDate(date);
                 vencimento.setHours(0, 0, 0, 0);
                 return (
                   !p.paga &&
                   vencimento < hoje &&
-                  p.dataVencimento.startsWith(fluxoFilter)
+                  date.startsWith(fluxoFilter)
                 );
               })
               .map((p: any) => {
@@ -4138,19 +4140,19 @@ export default function App() {
 
     const monthRetiradas = adminTransactions
       .filter(
-        (t: any) => t.data.startsWith(fluxoFilter) && t.tipo === "retirada",
+        (t: any) => (t.data || "").startsWith(fluxoFilter) && t.tipo === "retirada",
       )
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const monthDespesasPrevistas = adminTransactions
       .filter(
         (t: any) =>
-          t.data.startsWith(fluxoFilter) && t.tipo === "despesa_prevista",
+          (t.data || "").startsWith(fluxoFilter) && t.tipo === "despesa_prevista",
       )
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const monthAportes = adminTransactions
-      .filter((t: any) => t.data.startsWith(fluxoFilter) && t.tipo === "aporte")
+      .filter((t: any) => (t.data || "").startsWith(fluxoFilter) && t.tipo === "aporte")
       .reduce((acc: number, t: any) => acc + parseFloat(t.valor || 0), 0);
 
     const saldo = monthEntradas + monthAportes - monthSaidas - monthRetiradas;
@@ -4248,7 +4250,7 @@ export default function App() {
       setEditTransactionData({
         valor: item.valor.toString(),
         descricao: item.descricao,
-        data: item.data.split("T")[0],
+        data: (item.data || "").split("T")[0],
         tipo: item.tipo,
       });
     };
@@ -4876,7 +4878,7 @@ export default function App() {
 
       const opt = {
         margin: 10,
-        filename: `emprestimo-${selectedClient?.nomeCompleto.replace(/\s+/g, "-")}-simulacao-${simIndex + 1}.pdf`,
+        filename: `emprestimo-${(selectedClient?.nomeCompleto || "cliente").replace(/\s+/g, "-")}-simulacao-${simIndex + 1}.pdf`,
         image: { type: "jpeg" as const, quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: {
@@ -7054,10 +7056,11 @@ export default function App() {
                   .filter((c) => c.id !== "admin-transactions")
                   .filter(
                     (c) =>
-                      c.nomeCompleto
-                        .toLowerCase()
-                        .includes(searchTerm.toLowerCase()) ||
-                      c.cpf.includes(searchTerm),
+                      (c.nomeCompleto &&
+                        c.nomeCompleto
+                          .toLowerCase()
+                          .includes(searchTerm.toLowerCase())) ||
+                      (c.cpf && c.cpf.includes(searchTerm)),
                   )
                   .filter((c) => {
                     if (statusFilter === "todos") return true;
@@ -7071,7 +7074,7 @@ export default function App() {
                     }
                     return status === statusFilter;
                   })
-                  .sort((a, b) => a.nomeCompleto.localeCompare(b.nomeCompleto));
+                  .sort((a, b) => (a.nomeCompleto || "").localeCompare(b.nomeCompleto || ""));
 
                 return filteredClients.length > 0 ? (
                   <div className="overflow-x-auto">
@@ -7799,7 +7802,7 @@ export default function App() {
                 </h3>
                 {transactionsWithBalance.filter(
                   (t: any) =>
-                    t.data.startsWith(fluxoFilter) &&
+                    (t.data || "").startsWith(fluxoFilter) &&
                     (fluxoTypeFilter === "all" || t.tipo === fluxoTypeFilter),
                 ).length > 0 ? (
                   <div className="space-y-6">
@@ -7807,7 +7810,7 @@ export default function App() {
                       [...transactionsWithBalance]
                         .filter(
                           (t: any) =>
-                            t.data.startsWith(fluxoFilter) &&
+                            (t.data || "").startsWith(fluxoFilter) &&
                             (fluxoTypeFilter === "all" ||
                               t.tipo === fluxoTypeFilter),
                         )
