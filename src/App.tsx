@@ -1108,8 +1108,8 @@ export default function App() {
   };
 
   const generateVencidaMessage = (nomeCompleto: string, p: any, diasAtraso: number, valorAtualizado: number) => {
-    const nome = nomeCompleto.split(" ")[0];
-    const dataStrVencimento = p.dataVencimento.split('T')[0].split('-').reverse().join('/');
+    const nome = nomeCompleto ? nomeCompleto.split(" ")[0] : "Cliente";
+    const dataStrVencimento = p.dataVencimento ? p.dataVencimento.split('T')[0].split('-').reverse().join('/') : "";
     const valor40Porcento = formatCurrency(p.valor * 0.4);
 
     let mensagem = `Olá, ${nome}. A GM-Empréstimo informa que sua Parcela ${p.numero} está VENCIDA desde ${dataStrVencimento}.\nNossa política de trabalho, que permite congelar seus juros diários por até 7 dias, para isso precisa efetuar o pagamento de 40% do valor da parcela, que hoje é ${valor40Porcento}. Porém, se vencer esse prazo de 7 dias, seus juros serão atualizados e será abatido o que foi enviado.\n\n`;
@@ -1121,7 +1121,7 @@ export default function App() {
         const dataA = parseLocalDate(a.data);
         const diff = Math.max(0, hoje.getTime() - dataA.getTime());
         const dias = Math.floor(diff / (1000 * 60 * 60 * 24));
-        const dataStr = a.data.split('-').reverse().join('/');
+        const dataStr = a.data ? a.data.split('-').reverse().join('/') : "";
         mensagem += `- ${dataStr}: ${formatCurrency(a.valor)} (há ${dias} dia${dias !== 1 ? 's' : ''})\n`;
       });
       mensagem += `\n`;
@@ -2758,7 +2758,7 @@ export default function App() {
             <div>
               <div className="flex items-center gap-3 mb-1">
                 <h1 className="text-3xl font-bold text-slate-800">
-                  Olá, {selectedClient.nomeCompleto.split(" ")[0]}!
+                  Olá, {(selectedClient.nomeCompleto || "").split(" ")[0]}!
                 </h1>
                 {(() => {
                   const status = getClientStatus(selectedClient);
@@ -6829,7 +6829,7 @@ export default function App() {
                                         {isVencida && !isEditing && (
                                           <div className="mt-3 pt-3 border-t border-red-200 print:hidden">
                                             <a
-                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(generateVencidaMessage(selectedClient.nomeCompleto, p, diasAtraso, valorAtualizado))}`}
+                                              href={`https://wa.me/55${(selectedClient.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(generateVencidaMessage(selectedClient.nomeCompleto, p, diasAtraso, valorAtualizado))}`}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -6844,7 +6844,7 @@ export default function App() {
                                         {isVencendoHoje && (
                                           <div className="mt-3 pt-3 border-t border-yellow-200 print:hidden">
                                             <a
-                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
+                                              href={`https://wa.me/55${(selectedClient.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${(selectedClient.nomeCompleto || "").split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`)}`}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="flex justify-center items-center gap-2 w-full bg-[#25D366] hover:bg-[#128C7E] text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -6859,7 +6859,7 @@ export default function App() {
                                         {isPreVencimento && (
                                           <div className="mt-3 pt-3 border-t border-blue-200 print:hidden">
                                             <a
-                                              href={`https://wa.me/55${selectedClient.telefone.replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${selectedClient.nomeCompleto.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`)}`}
+                                              href={`https://wa.me/55${(selectedClient.telefone || "").replace(/\D/g, "")}?text=${encodeURIComponent(`Olá ${(selectedClient.nomeCompleto || "").split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(valorAtualizado)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`)}`}
                                               target="_blank"
                                               rel="noopener noreferrer"
                                               className="flex justify-center items-center gap-2 w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors text-sm"
@@ -7390,12 +7390,12 @@ export default function App() {
                                     <td className="py-3 px-6 text-right print:hidden">
                                       <div className="flex items-center justify-end gap-2">
                                         <a
-                                          href={`https://wa.me/55${p.clientPhone.replace(/\D/g, "")}?text=${encodeURIComponent(
+                                          href={`https://wa.me/55${(p.clientPhone || "").replace(/\D/g, "")}?text=${encodeURIComponent(
                                             (() => {
                                               if (isVencendoHoje) {
-                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
+                                                return `Olá ${(p.clientName || "").split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence hoje, ${formatDate(p.dataVencimento)}. O pagamento deve ser realizado até as 18 horas via Pix. Nossa chave Pix: 31972323040 (Silmara).`;
                                               } else if (isPreVencimento) {
-                                                return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`;
+                                                return `Olá ${(p.clientName || "").split(" ")[0]}, a GM-Empréstimo informa que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vence em ${diasParaVencimento} dia${diasParaVencimento > 1 ? 's' : ''}, no dia ${formatDate(p.dataVencimento)}.`;
                                               } else if (isVencida) {
                                                 let dataBase = hoje;
                                                 if (
@@ -7451,7 +7451,7 @@ export default function App() {
                                                 );
                                                 return generateVencidaMessage(p.clientName, p, diasAtraso, valorAtualizado);
                                               }
-                                              return `Olá ${p.clientName.split(" ")[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vencerá em ${formatDate(p.dataVencimento)}.`;
+                                              return `Olá ${(p.clientName || "").split(" ")[0]}, a GM-Empréstimo lembra que sua Parcela ${p.numero} no valor de ${formatCurrency(p.valorRestante)} vencerá em ${formatDate(p.dataVencimento)}.`;
                                             })(),
                                           )}`}
                                           target="_blank"
