@@ -1154,7 +1154,7 @@ export default function App() {
     hoje.setHours(0, 0, 0, 0);
 
     for (const sim of clientSims) {
-      for (const p of sim.parcelas) {
+      for (const p of (sim.parcelas || [])) {
         if (!p.paga) {
           const vencimento = parseLocalDate(p.dataVencimento);
           vencimento.setHours(0, 0, 0, 0);
@@ -3101,7 +3101,7 @@ export default function App() {
                           </h3>
 
                           <div className="grid grid-cols-1 gap-4">
-                            {sim.parcelas.map((p: any, i: number) => {
+                            {(sim.parcelas || []).map((p: any, i: number) => {
                               const hoje = new Date();
                               hoje.setHours(0, 0, 0, 0);
                               const vencimento = parseLocalDate(
@@ -4575,7 +4575,7 @@ export default function App() {
           : getLocalISODate()),
         dataVencimentoUnica:
           sim.prazo === "única"
-            ? (sim.parcelas && sim.parcelas.length > 0 ? sim.parcelas[0].dataVencimento.split("T")[0] : (sim.dataVencimentoUnica || ""))
+            ? (sim.parcelas && sim.parcelas.length > 0 ? (sim.parcelas[0].dataVencimento || "").split("T")[0] : (sim.dataVencimentoUnica || ""))
             : "",
         valorParcela: "", // Do not pre-fill, let it auto-calculate unless user overrides
       });
@@ -5509,7 +5509,7 @@ export default function App() {
                         </button>
                       )}
                     </div>
-                    {selectedClient.simulacoes.map(
+                    {(selectedClient.simulacoes || []).map(
                       (sim: any, simIndex: number) => {
                         if (sim.arquivado && !showArchivedLoans) return null;
 
@@ -5996,7 +5996,7 @@ export default function App() {
                                   </div>
                                 </div>
                                 <div className="grid grid-cols-1 gap-4">
-                                  {sim.parcelas.map((p: any, i: number) => {
+                                  {(sim.parcelas || []).map((p: any, i: number) => {
                                     const hoje = new Date();
                                     hoje.setHours(0, 0, 0, 0);
                                     const vencimento = parseLocalDate(
@@ -7820,7 +7820,7 @@ export default function App() {
                           return descA.localeCompare(descB);
                         })
                         .reduce((acc: any, t: any) => {
-                          const dateKey = t.data.split("T")[0];
+                          const dateKey = (t.data || "").split("T")[0];
                           if (!acc[dateKey]) acc[dateKey] = [];
                           acc[dateKey].push(t);
                           return acc;
@@ -8628,7 +8628,7 @@ export default function App() {
                           Cronograma de Pagamento:
                         </h4>
                         <div className="max-h-60 overflow-y-auto pr-2 space-y-2">
-                          {simulacao.parcelas.map((p, i) => (
+                          {(simulacao.parcelas || []).map((p, i) => (
                             <div
                               key={i}
                               className="flex justify-between items-center bg-white p-3 rounded-lg border border-yellow-100 shadow-sm"
