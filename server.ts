@@ -1,5 +1,7 @@
 import express from "express";
-import archiver from "archiver";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const archiver = require("archiver");
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
