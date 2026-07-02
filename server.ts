@@ -1,10 +1,10 @@
 import express from "express";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
-const archiver = require("archiver");
 import path from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
+import { ZipArchive } from "archiver";
 import fs, { readFileSync, existsSync } from "fs";
 import dotenv from 'dotenv';
 
@@ -174,13 +174,10 @@ app.post("/api/clients/login", async (req, res) => {
     }
     
     const data = querySnapshot.docs[0].data();
-    const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
-    res.json({ 
-      ...clientData, 
-      id: querySnapshot.docs[0].id,
-      cpf: data.cpf,
-      nomeCompleto: data.nomeCompleto || clientData.nomeCompleto
-    });
+    const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : (data.dados || {});
+    const merged = { ...clientData, ...data, id: querySnapshot.docs[0].id };
+    delete merged.dados;
+    res.json(merged);
   } catch (error) {
     console.error("Error logging in client:", error);
     res.status(500).json({ error: "Erro ao fazer login" });
@@ -231,8 +228,10 @@ app.get("/api/clients", requireAdmin, async (req, res) => {
       
     const parsedClients = querySnapshot.docs.map(doc => {
       const c = doc.data();
-      const dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : c.dados;
-      return { ...dados, id: doc.id };
+      const dados = typeof c.dados === 'string' ? JSON.parse(c.dados) : (c.dados || {});
+      const merged = { ...dados, ...c, id: doc.id };
+      delete merged.dados;
+      return merged;
     });
     res.json(parsedClients);
   } catch (error) {
@@ -255,8 +254,10 @@ app.get("/api/clients/:id", async (req, res) => {
     }
     
     const data = docSnap.data();
-    const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : data.dados;
-    res.json({ ...clientData, id: docSnap.id });
+    const clientData = typeof data.dados === 'string' ? JSON.parse(data.dados) : (data.dados || {});
+    const merged = { ...clientData, ...data, id: docSnap.id };
+    delete merged.dados;
+    res.json(merged);
   } catch (error) {
     console.error("Error fetching client:", error);
     res.status(500).json({ error: "Falha ao buscar cliente" });
@@ -642,7 +643,7 @@ app.post("/api/chat/:clientId/messages/:messageId/restore", requireAdmin, async 
 // Backup route for admin
 app.get("/api/backup", requireAdmin, async (req, res) => {
   try {
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    const archive = new ZipArchive({ zlib: { level: 9 } });
     
     res.attachment(`backup_gm_${new Date().toISOString().slice(0, 10)}.zip`);
     archive.on('error', (err) => {
